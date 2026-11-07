@@ -81,6 +81,6 @@ upload ficar em `Connecting....`, segure o botão **BOOT** até começar a grava
 
 - Nada foi testado em um ESP32 físico; só a compilação (RAM 8,8 %, flash 27,3 %).
 - O `diag`, o watchdog e a leitura do ADC precisam ser conferidos na placa.
-- Medido na bancada: com 0 V no pino, o ADC do ESP32 devolve ~0,14 V (176 contagens), não 0. Por isso `MQ135_ADC_MIN_VALID = 200` (~0,16 V) no ESP32: abaixo disso o firmware acusa falha do MQ-135 (AO solto ou em curto).
+- Observado na bancada: com o AO solto e com o pino sem sinal, o ADC devolveu sempre 176 contagens (~0,14 V), não 0. Isso bate com o piso de leitura do ADC do ESP32 com atenuação de 11 dB. Por isso `MQ135_ADC_MIN_VALID = 200` (~0,16 V) no ESP32: abaixo disso o firmware acusa falha do MQ-135 (AO solto ou em curto).
 - A precisão do ADC do ESP32 varia de chip para chip. A calibração R0 (`cal start`) absorve um erro
   fixo, mas não a não linearidade perto dos extremos da faixa.
