@@ -32,7 +32,7 @@ struct SensorSnapshot {
   bool     airWarmingUp = true;
   bool     airCalibrated = false;
   uint16_t rawAdc = 0;
-  float    adcVoltage = 0;   // at the RP2040 pin
+  float    adcVoltage = 0;   // at the MCU ADC pin
   float    sensorVoltage = 0;// at MQ-135 AO (divider undone)
   float    rs = 0;           // ohms
   float    ratio = 0;        // Rs/R0 (compensated if enabled)

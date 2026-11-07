@@ -1,5 +1,5 @@
 // AirGuard IoT - non-blocking driver for the REYAX RYLR998 LoRa module
-// (UART AT commands, Serial1 = UART0 on GP0/GP1, NRST on GP2).
+// (UART AT commands; pins and UART in config/hardware_pins.h / platform/board.h).
 //
 // State machine:
 //   Uninit --begin--> Init (NRST pulse, wait +READY, send config one command

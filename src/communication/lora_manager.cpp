@@ -6,6 +6,7 @@
 
 #include "../config/config.h"
 #include "../config/hardware_pins.h"
+#include "../platform/board.h"
 #include "../utils/logger.h"
 #include "rylr998_codec.h"
 
@@ -24,10 +25,7 @@ bool startsWith(const char* s, size_t len, const char* prefix) {
 }  // namespace
 
 bool LoraManager::begin() {
-  Serial1.setTX(pins::LORA_UART_TX);
-  Serial1.setRX(pins::LORA_UART_RX);
-  Serial1.setFIFOSize(UART_FIFO);
-  Serial1.begin(cfg::LORA_UART_BAUD);
+  board::loraUartBegin(cfg::LORA_UART_BAUD, UART_FIFO);
   pinMode(pins::LORA_NRST, OUTPUT);
   startInit(millis());
   return true;
@@ -66,8 +64,8 @@ bool LoraManager::nextConfigCommand(char* out, size_t cap) {
 }
 
 void LoraManager::sendCommand(const char* cmd, uint32_t now) {
-  Serial1.write(reinterpret_cast<const uint8_t*>(cmd), strlen(cmd));
-  Serial1.write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
+  board::loraSerial().write(reinterpret_cast<const uint8_t*>(cmd), strlen(cmd));
+  board::loraSerial().write(reinterpret_cast<const uint8_t*>("\r\n"), 2);
   cmdPending_ = true;
   cmdSentMs_ = now;
   LOGD("LORA", "> %s", cmd);
@@ -169,7 +167,7 @@ LoraManager::TxResult LoraManager::startTransmit(const uint8_t* data, size_t len
          static_cast<unsigned>(rylr::MAX_PAYLOAD));
     return TxResult::Error;
   }
-  Serial1.write(reinterpret_cast<const uint8_t*>(buf), n);  // ~22 ms for 250 B @115200
+  board::loraSerial().write(reinterpret_cast<const uint8_t*>(buf), n);  // ~22 ms for 250 B @115200
   cmdPending_ = true;
   cmdSentMs_ = now;
   txStartMs_ = now;
@@ -188,8 +186,8 @@ void LoraManager::pumpUart(uint32_t now) {
     LOGW("LORA", "incomplete UART line dropped (%u B)", static_cast<unsigned>(lineLen_));
     lineLen_ = 0;
   }
-  for (int i = 0; i < UART_FIFO && Serial1.available() > 0; ++i) {
-    const int c = Serial1.read();
+  for (int i = 0; i < UART_FIFO && board::loraSerial().available() > 0; ++i) {
+    const int c = board::loraSerial().read();
     if (c < 0) break;
     if (lineLen_ == 0) lineStartMs_ = now;
     if (c != '\n') {

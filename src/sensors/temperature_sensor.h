@@ -1,6 +1,6 @@
 // AirGuard IoT - temperature/humidity driver.
 //
-// Installed sensor: DHT11 module on GP28 (3.3 V).
+// Installed sensor: DHT11 module (3.3 V); pin in config/hardware_pins.h.
 // Supported at compile time (platformio.ini build flag):
 //   -D AIRGUARD_ENV_SENSOR_DHT11   (default env) 0..50 C +-2 C, 20..90 %RH +-5 %
 //   -D AIRGUARD_ENV_SENSOR_DHT22   -40..80 C +-0.5 C, 0..100 %RH +-2..5 %

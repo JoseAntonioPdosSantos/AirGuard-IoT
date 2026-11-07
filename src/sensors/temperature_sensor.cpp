@@ -14,7 +14,7 @@ static Adafruit_AHTX0 g_aht;
 static bool g_ahtOk = false;
 
 bool TemperatureSensor::begin() {
-  g_ahtOk = g_aht.begin(&Wire);  // Wire configured by the app (I2C0, GP4/GP5)
+  g_ahtOk = g_aht.begin(&Wire);  // Wire configured by the app (board::i2cBegin)
   if (!g_ahtOk) LOGE("ENV", "AHT20 not found at 0x38");
   return g_ahtOk;
 }

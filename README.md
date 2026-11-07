@@ -2,7 +2,8 @@
 
 **SMART ENVIRONMENTAL MONITORING** — *Intelligent monitoring. Safer environments.*
 
-Firmware de monitoramento ambiental de cozinha para a **Raspberry Pi RP2040-Zero**. O
+Firmware de monitoramento ambiental de cozinha para o **ESP32 DevKit** (branch `esp32-devkit`,
+padrão) e a **Waveshare RP2040-Zero** (branch `main`, também compila aqui). O
 dispositivo funciona continuamente, **sem Wi-Fi nem internet**:
 
 - **qualidade do ar relativa** com MQ-135 (calibração R0, filtragem, histerese);
@@ -24,7 +25,7 @@ dispositivo funciona continuamente, **sem Wi-Fi nem internet**:
 
 ```bash
 make -C tests                 # 84 testes unitários no PC (ASan/UBSan)
-pio run                       # compilar (DHT11)   |  -e rp2040zero_dht22 / rp2040zero_aht20
+pio run                       # compilar ESP32 + DHT11 | -e esp32dev_dht22 / esp32dev_aht20 / rp2040zero
 pio run -t upload             # gravar
 pio device monitor            # console 115200 → digite "help"
 ```
@@ -37,7 +38,8 @@ AirGuard-IoT/
 ├── src/
 │   ├── main.cpp
 │   ├── app/            orquestração + console serial
-│   ├── config/         config.h, thresholds.h, hardware_pins.h
+│   ├── config/         config.h, thresholds.h, hardware_pins.h (ESP32 e RP2040)
+│   ├── platform/       board.h: única camada com chamadas específicas da placa
 │   ├── sensors/        MQ-135 (ADC), DHT11/DHT22/AHT20
 │   ├── monitoring/     cadeia do MQ-135, ambiente, severidade, alertas
 │   ├── communication/  protocolo JSON, fila de ACK, driver RYLR998 (AT)
@@ -62,6 +64,7 @@ AirGuard-IoT/
 | 08 | [Limitações](docs/08_limitations.md) | **limitações conhecidas** |
 | 09 | [Compilação e gravação](docs/09_build_flash.md) | **compilação**, **gravação**, validação física |
 | 10 | [Referências](docs/10_references.md) | **referências técnicas e científicas** |
+| 11 | [ESP32 DevKit](docs/11_esp32_devkit.md) | **ligações no ESP32**, pinos evitados, diferenças da RP2040 |
 
 ## Estado atual
 
@@ -69,6 +72,7 @@ AirGuard-IoT/
 |---|---|
 | Lógica central (classificação, alertas, protocolo, ACK, rádio AT, telas, texto) | ✅ implementada, 84 testes unitários passando |
 | Drivers (LoRa, OLED, buzzer, relé, LED, sensores, flash) e integração | ✅ implementados |
-| Compilação com o toolchain RP2040 (`pio run`) | ✅ DHT11, DHT22 e AHT20 compilam sem avisos (RAM 6,3 %, flash 4,9 %) |
+| Compilação ESP32 DevKit (`pio run`) | ✅ DHT11 e AHT20 compilam sem avisos (RAM 8,8 %, flash 27,3 %); **não testado em placa física** |
+| Compilação RP2040-Zero (`pio run -e rp2040zero`) | ✅ compila; firmware rodou na placa (MQ-135 lido; demais módulos sem contato: pinos sem solda) |
 | Testes em hardware (23 cenários) | ⏳ pendentes (requer montagem) |
 | Pendências de hardware | ver [docs/01_hardware.md §6](docs/01_hardware.md) |

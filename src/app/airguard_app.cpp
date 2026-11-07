@@ -2,12 +2,12 @@
 
 #include <Arduino.h>
 #include <Wire.h>
-#include <hardware/watchdog.h>
 #include <new>
 #include <string.h>
 
 #include "../config/config.h"
 #include "../config/hardware_pins.h"
+#include "../platform/board.h"
 #include "../utils/logger.h"
 #include "../utils/persistent_store.h"
 
@@ -51,9 +51,10 @@ void AirGuardApp::setup() {
 
   LOGI("BOOT", "AirGuard IoT v%s - SMART ENVIRONMENTAL MONITORING", AIRGUARD_FW_VERSION);
   LOGI("BOOT", "Intelligent monitoring. Safer environments.");
+  LOGI("BOOT", "board: %s", board::NAME);
   LOGI("BOOT", "device %s -> gateway %s, env sensor %s", cfg::DEVICE_ID, cfg::GATEWAY_ID,
        envSensor_.model());
-  if (watchdog_caused_reboot()) LOGW("BOOT", "previous reset was caused by the WATCHDOG");
+  if (board::watchdogCausedReboot()) LOGW("BOOT", "previous reset was caused by the WATCHDOG");
   LOGW("BOOT", "prototype: NOT a certified gas/safety detector");
 
   // 2) Persistent state -> unique event ids across reboots.
@@ -65,10 +66,7 @@ void AirGuardApp::setup() {
        st.r0Valid ? "stored" : "NOT calibrated", st.r0, st.highMask);
 
   // 3) Buses and peripherals (each may fail independently).
-  Wire.setSDA(pins::I2C_SDA);
-  Wire.setSCL(pins::I2C_SCL);
-  Wire.setClock(cfg::I2C_CLOCK_HZ);
-  Wire.begin();
+  board::i2cBegin(cfg::I2C_CLOCK_HZ);
   oled_.begin();
   oled_.render(DisplayModel{});  // boot screen
 
@@ -84,9 +82,9 @@ void AirGuardApp::setup() {
     LOGW("BOOT", "restored HIGH state (mask 0x%02X) from before the reboot", st.highMask);
   }
 
-  randomSeed(rp2040.hwrand32());
+  randomSeed(board::hwRandom());
   buzzer_.chirp(millis());
-  rp2040.wdt_begin(cfg::WATCHDOG_TIMEOUT_MS);
+  board::watchdogBegin(cfg::WATCHDOG_TIMEOUT_MS);
   LOGI("BOOT", "MQ-135 warm-up %lu s. Type 'help' for console commands.",
        static_cast<unsigned long>(cfg::MQ135_WARMUP_MS / 1000));
 }
@@ -96,7 +94,7 @@ void AirGuardApp::setup() {
 // ===========================================================================
 void AirGuardApp::loop() {
   const uint32_t now = millis();
-  rp2040.wdt_reset();
+  board::watchdogFeed();
   taskConsole(now);
   taskSensors(now);
   taskAlerts(now);

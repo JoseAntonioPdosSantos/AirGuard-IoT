@@ -1,4 +1,4 @@
-// AirGuard IoT - status LEDs (red GP7, yellow GP12).
+// AirGuard IoT - status LEDs (red, yellow; pins in config/hardware_pins.h).
 //
 //   Startup (boot / MQ-135 warm-up, no alert) -> yellow slow blink (1 Hz)
 //   NORMAL  -> both off

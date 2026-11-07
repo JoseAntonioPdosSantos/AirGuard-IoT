@@ -8,6 +8,7 @@
 
 #include "../config/config.h"
 #include "../config/hardware_pins.h"
+#include "../platform/board.h"
 #include "../utils/logger.h"
 #include "../utils/persistent_store.h"
 #include "airguard_app.h"
@@ -79,7 +80,7 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
   if (!strcmp(cmd, "reboot")) {
     LOGW("CON", "rebooting");
     delay(50);  // let the log line leave
-    rp2040.reboot();
+    board::reboot();
     return;
   }
 
@@ -235,18 +236,18 @@ const char* idleLevel(uint8_t pin) {
 
 void AirGuardApp::runDiagnostics(uint32_t now) {
   writeRaw("\r\n=== AirGuard diag ===\r\n");
-  char b[160];
+  char b[200];
+  snprintf(b, sizeof b, "board: %s\r\n", board::NAME);
+  writeRaw(b);
+  const char* P = board::PIN_PREFIX;
 
   // ---- I2C (OLED) ----
   Wire.end();
-  snprintf(b, sizeof b, "I2C SDA GP%u: %s\r\n", pins::I2C_SDA, idleLevel(pins::I2C_SDA));
+  snprintf(b, sizeof b, "I2C SDA %s%u: %s\r\n", P, pins::I2C_SDA, idleLevel(pins::I2C_SDA));
   writeRaw(b);
-  snprintf(b, sizeof b, "I2C SCL GP%u: %s\r\n", pins::I2C_SCL, idleLevel(pins::I2C_SCL));
+  snprintf(b, sizeof b, "I2C SCL %s%u: %s\r\n", P, pins::I2C_SCL, idleLevel(pins::I2C_SCL));
   writeRaw(b);
-  Wire.setSDA(pins::I2C_SDA);
-  Wire.setSCL(pins::I2C_SCL);
-  Wire.setClock(100000);  // slow scan
-  Wire.begin();
+  board::i2cBegin(100000);  // slow scan
   int found = 0;
   for (uint8_t a = 0x08; a < 0x78; ++a) {
     Wire.beginTransmission(a);
@@ -259,73 +260,78 @@ void AirGuardApp::runDiagnostics(uint32_t now) {
   }
   if (!found) writeRaw("I2C: no device answered (check VDD/GND, SDA<->SCL swap)\r\n");
   Wire.setClock(cfg::I2C_CLOCK_HZ);
-  rp2040.wdt_reset();
+  board::watchdogFeed();
 
   // ---- DHT data line ----
-  snprintf(b, sizeof b, "DHT11 DATA GP%u: %s\r\n", pins::DHT_DATA, idleLevel(pins::DHT_DATA));
+  snprintf(b, sizeof b, "DHT11 DATA %s%u: %s\r\n", P, pins::DHT_DATA, idleLevel(pins::DHT_DATA));
   writeRaw(b);
   pinMode(pins::DHT_DATA, INPUT_PULLUP);  // library default between reads
 
   // ---- RYLR998 ----
   lora_.simulateFault(now);  // stop the driver; it re-initialises by itself in 30 s
-  Serial1.end();
-  snprintf(b, sizeof b, "RYLR998 TXD -> GP%u (idle must be HIGH): %s\r\n", pins::LORA_UART_RX,
+  board::loraUartEnd();
+  snprintf(b, sizeof b, "RYLR998 TXD -> %s%u (idle must be HIGH): %s\r\n", P, pins::LORA_UART_RX,
            idleLevel(pins::LORA_UART_RX));
   writeRaw(b);
   digitalWrite(pins::LORA_NRST, HIGH);
+
+  // Sends AT on the current UART and returns true on "+OK"; resp gets the text.
+  auto probe = [](Stream& port, char* resp, size_t cap) {
+    delay(5);
+    while (port.available()) port.read();
+    port.write("AT\r\n");
+    size_t n = 0;
+    const uint32_t t0 = millis();
+    while (millis() - t0 < 400 && n < cap - 1) {
+      if (port.available()) {
+        const int c = port.read();
+        if (c >= 0x20 && c < 0x7F) resp[n++] = static_cast<char>(c);
+      }
+    }
+    resp[n] = '\0';
+    board::watchdogFeed();
+    return strstr(resp, "+OK") != nullptr;
+  };
+
   static const uint32_t bauds[] = {115200, 9600, 57600, 38400, 19200};
   bool answered = false;
   for (uint32_t baud : bauds) {
-    Serial1.setTX(pins::LORA_UART_TX);
-    Serial1.setRX(pins::LORA_UART_RX);
-    Serial1.begin(baud);
-    while (Serial1.available()) Serial1.read();
-    Serial1.write("AT\r\n");
-    char resp[48] = "";
-    size_t n = 0;
-    const uint32_t t0 = millis();
-    while (millis() - t0 < 400 && n < sizeof resp - 1) {
-      if (Serial1.available()) {
-        const int c = Serial1.read();
-        if (c >= 0x20 && c < 0x7F) resp[n++] = static_cast<char>(c);
-      }
-    }
-    resp[n] = '\0';
+    board::loraUartBegin(baud, 256);
+    char resp[48];
+    answered = probe(board::loraSerial(), resp, sizeof resp);
+    board::loraUartEnd();
     snprintf(b, sizeof b, "RYLR998 @%lu baud: %s\r\n", static_cast<unsigned long>(baud),
-             n ? resp : "(no answer)");
+             resp[0] ? resp : "(no answer)");
     writeRaw(b);
-    Serial1.end();
-    rp2040.wdt_reset();
-    if (strstr(resp, "+OK")) { answered = true; break; }
+    if (answered) break;
   }
   if (!answered) {
-    // Same test with TX/RX swapped (PIO UART can use any pins): detects
-    // "module TXD on GP0 and RXD on GP1".
-    SerialPIO swapped(pins::LORA_UART_RX /*TX on GP1*/, pins::LORA_UART_TX /*RX on GP0*/, 64);
+    // Same test with TX/RX swapped: detects crossed TXD/RXD wires.
+    char resp[48];
+    bool swappedOk;
+#if defined(ARDUINO_ARCH_RP2040)
+    // UART0 cannot swap its pins; a PIO UART can use any pins.
+    SerialPIO swapped(pins::LORA_UART_RX, pins::LORA_UART_TX, 64);
     swapped.begin(cfg::LORA_UART_BAUD);
-    delay(5);
-    while (swapped.available()) swapped.read();
-    swapped.write("AT\r\n");
-    char resp[48] = "";
-    size_t n = 0;
-    const uint32_t t0 = millis();
-    while (millis() - t0 < 400 && n < sizeof resp - 1) {
-      if (swapped.available()) {
-        const int c = swapped.read();
-        if (c >= 0x20 && c < 0x7F) resp[n++] = static_cast<char>(c);
-      }
-    }
-    resp[n] = '\0';
+    swappedOk = probe(swapped, resp, sizeof resp);
     swapped.end();
-    rp2040.wdt_reset();
-    if (strstr(resp, "+OK"))
-      writeRaw("RYLR998: answers with TX/RX SWAPPED -> exchange the TXD and RXD wires "
-               "(module TXD must go to GP1, RXD to GP0)\r\n");
+#else
+    board::loraUartBegin(cfg::LORA_UART_BAUD, 256, /*swapped=*/true);
+    swappedOk = probe(board::loraSerial(), resp, sizeof resp);
+    board::loraUartEnd();
+#endif
+    if (swappedOk)
+      snprintf(b, sizeof b,
+               "RYLR998: answers with TX/RX SWAPPED -> exchange the TXD and RXD wires "
+               "(module TXD must go to %s%u, RXD to %s%u)\r\n",
+               P, pins::LORA_UART_RX, P, pins::LORA_UART_TX);
     else
-      writeRaw("RYLR998: no +OK at any baud, also not swapped (check RXD wire to GP0, "
-               "3V3/GND at the module, NRST to GP2)\r\n");
+      snprintf(b, sizeof b,
+               "RYLR998: no +OK at any baud, also not swapped (check RXD wire to %s%u, "
+               "3V3/GND at the module, NRST to %s%u)\r\n",
+               P, pins::LORA_UART_TX, P, pins::LORA_NRST);
+    writeRaw(b);
   }
-  Serial1.setFIFOSize(512);
-  Serial1.begin(cfg::LORA_UART_BAUD);
+  board::loraUartBegin(cfg::LORA_UART_BAUD, 512);
   writeRaw("=== end diag (LoRa driver retries in 30 s) ===\r\n");
 }

@@ -80,7 +80,7 @@ constexpr float HUM_MAX_PLAUSIBLE  = 100.0f;
 namespace mq135 {
 
 // ---- Measurement circuit (MEASURE your module! docs/01_hardware.md) --------
-constexpr float ADC_VREF        = 3.30f;    // RP2040-Zero ADC_VREF tied to 3V3
+constexpr float ADC_VREF        = 3.30f;    // RP2040: ADC_VREF = 3V3; ESP32: board::adcRead12 rescales mV to 3.3 V
 constexpr float ADC_MAX_COUNTS  = 4095.0f;  // 12-bit
 constexpr float DIVIDER_R_TOP   = 10000.0f; // AO -> R_TOP -> ADC
 constexpr float DIVIDER_R_BOTTOM = 20000.0f;// ADC -> R_BOTTOM -> GND (2 x 10k in SERIES;
