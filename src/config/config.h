@@ -48,12 +48,14 @@ constexpr uint32_t MQ135_WARMUP_MS = 5UL * 60UL * 1000UL;
 // ---------------------------------------------------------------------------
 constexpr uint8_t  ENV_FAIL_LIMIT     = 3;   // consecutive bad reads -> fault (~7.5 s)
 constexpr uint8_t  MQ135_FAIL_LIMIT   = 5;   // consecutive bad samples -> fault (~5 s)
-constexpr uint16_t MQ135_ADC_MIN_VALID = 8;     // below: open circuit / disconnected
 #if defined(ARDUINO_ARCH_ESP32)
-// ESP32 ADC (11 dB attenuation) saturates at ~3.1 V = ~3850 counts referenced
-// to 3.3 V, so "over-range" starts lower than on the RP2040.
+// ESP32 ADC (11 dB attenuation) cannot read below ~0.14 V (it returns that
+// floor for 0 V, measured on the bench: 176 counts), and saturates at ~3.1 V.
+// A pin at the floor is indistinguishable from "AO disconnected / shorted".
+constexpr uint16_t MQ135_ADC_MIN_VALID = 200;   // ~0.16 V at the pin
 constexpr uint16_t MQ135_ADC_MAX_VALID = 3800;  // ~3.06 V at the pin
 #else
+constexpr uint16_t MQ135_ADC_MIN_VALID = 8;     // below: open circuit / disconnected
 constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range
 #endif
 
