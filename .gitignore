@@ -5,3 +5,4 @@ compile_commands.json
 .vscode/launch.json
 .vscode/ipch
 logs/
+receiver/tests/build/

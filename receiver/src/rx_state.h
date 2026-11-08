@@ -1,0 +1,46 @@
+// AirGuard Receiver - what the receiver knows about the node (pure, unit tested).
+//
+// The node only transmits EVENTS (ALERT when a category changes level,
+// RECOVERY when it returns to normal, REMINDER while an alert lasts). The
+// receiver keeps the last level of each category; the overall level is the
+// worst of them and drives the LEDs:
+//   NORMAL -> green, LOW / MEDIUM -> yellow, HIGH -> red.
+#pragma once
+#include <stdint.h>
+
+#include "event_parser.h"
+
+namespace rx {
+
+enum class Led : uint8_t { WaitingBlink, Green, Yellow, Red };
+
+class ReceiverState {
+ public:
+  // Applies a decoded event. Returns true if the overall level changed.
+  bool apply(const Event& e, uint32_t nowMs);
+
+  bool     anyReceived() const { return received_; }
+  Sev      overall() const;
+  Cat      worst() const;                 // category with the highest level
+  Sev      level(Cat c) const { return sev_[static_cast<uint8_t>(c)]; }
+  Led      led() const;
+
+  bool  hasTemp() const { return hasTemp_; }
+  float temperature() const { return temp_; }
+  bool  hasHum() const { return hasHum_; }
+  float humidity() const { return hum_; }
+  bool  hasAir() const { return hasAir_; }
+  uint32_t airIndex() const { return air_; }
+  uint32_t lastMsgMs() const { return lastMs_; }
+  uint32_t events() const { return events_; }
+
+ private:
+  Sev      sev_[static_cast<uint8_t>(Cat::Count)] = {};
+  bool     received_ = false;
+  bool     hasTemp_ = false, hasHum_ = false, hasAir_ = false;
+  float    temp_ = 0, hum_ = 0;
+  uint32_t air_ = 0;
+  uint32_t lastMs_ = 0, events_ = 0;
+};
+
+}  // namespace rx

@@ -30,6 +30,12 @@ pio run -t upload             # gravar
 pio device monitor            # console 115200 → digite "help"
 ```
 
+## Receptor (segundo dispositivo)
+
+A pasta [`receiver/`](receiver/README.md) contém o **AirGuard Receiver** (RP2040-Zero + RYLR998 +
+LCD 16x2 I2C + LEDs verde/amarelo/vermelho). Ele recebe os alertas pelo LoRa, responde com ACK e
+mostra o estado. É um projeto PlatformIO próprio (`cd receiver && pio run`).
+
 ## Estrutura
 
 ```
