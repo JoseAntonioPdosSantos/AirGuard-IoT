@@ -74,7 +74,7 @@ constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range
 // ESCALATE: candidate level must persist this long before it is confirmed.
 // RECOVER : the lower level must be stable this long before de-escalating.
 // ---------------------------------------------------------------------------
-constexpr uint32_t AIR_ESCALATE_MS  = 5000;
+constexpr uint32_t AIR_ESCALATE_MS  = 2000;  // was 5 s; 2 s at user request (short gas puffs)
 constexpr uint32_t AIR_RECOVER_MS   = 10000;  // was 60 s; 10 s at user request (gas gone -> normal)
 constexpr uint32_t TEMP_ESCALATE_MS = 10000;
 constexpr uint32_t TEMP_RECOVER_MS  = 60000;

@@ -28,8 +28,8 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 
 | Constante (conceito) | Faixa | Severidade | Referência |
 |---|---|---|---|
-| HUMIDITY_NORMAL | 30 % < UR < 60 % | NORMAL | EPA: manter UR abaixo de 60 %, idealmente entre 30 e 50 % |
-| HUMIDITY_WARNING (alta) | UR ≥ 60 % | LOW | EPA: crescimento de mofo |
+| HUMIDITY_NORMAL | 30 % < UR < 70 % | NORMAL | EPA: manter UR abaixo de 60 %, idealmente entre 30 e 50 % |
+| HUMIDITY_WARNING (alta) | UR ≥ 70 % | LOW | EPA recomenda < 60 % (mofo); elevado para 70 % a pedido do usuário, porque a UR ambiente local fica em 65–70 % |
 | HUMIDITY_WARNING (alta) | UR ≥ 80 % | MEDIUM | UR sustentada > 70–80 % favorece mofo em superfícies. Era 70 %; elevado a pedido do usuário porque a UR ambiente local fica perto de 70 % |
 | HUMIDITY_CRITICAL (alta) | UR ≥ 85 % | HIGH | **protótipo:** condensação provável (vapor intenso, vazamento) |
 | HUMIDITY_WARNING (baixa) | UR ≤ 30 % | LOW | EPA (limite inferior recomendado) |
@@ -72,7 +72,7 @@ os limites valem para **este** módulo e precisam ser revistos se ele for trocad
 
 | Categoria | Para subir de nível | Para descer de nível |
 |---|---|---|
-| Qualidade do ar | 5 s | 10 s estável (era 60 s; reduzido a pedido do usuário) |
+| Qualidade do ar | 2 s (era 5 s) | 10 s estável (era 60 s; reduzido a pedido do usuário) |
 | Temperatura | 10 s | 60 s estável |
 | Umidade | 30 s | 120 s estável |
 
