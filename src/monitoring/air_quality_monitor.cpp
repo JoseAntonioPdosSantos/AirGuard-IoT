@@ -121,7 +121,8 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   }
   const float vMed = vs[vCount_ / 2];
   if (!vEmaInit_) { vEma_ = vMed; vEmaInit_ = true; }
-  else vEma_ += mq135::V_EMA_ALPHA * (vMed - vEma_);
+  else if (s.vSensor > vEma_) vEma_ = s.vSensor;  // instant attack: gas fires at once
+  else vEma_ += mq135::V_EMA_ALPHA * (vMed - vEma_);  // smooth release
   s.vFiltered = vEma_;
 
   float comp = 1.0f;

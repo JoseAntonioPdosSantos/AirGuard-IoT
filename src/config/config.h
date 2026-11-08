@@ -24,7 +24,7 @@ constexpr size_t ALLOWED_TEXT_SOURCES_COUNT =
 // ---------------------------------------------------------------------------
 // Scheduling (cooperative, non-blocking main loop)
 // ---------------------------------------------------------------------------
-constexpr uint32_t MQ135_SAMPLE_PERIOD_MS  = 1000;
+constexpr uint32_t MQ135_SAMPLE_PERIOD_MS  = 200;   // 5 Hz: gas alarm reacts within ~0.2 s
 constexpr uint8_t  MQ135_OVERSAMPLE        = 16;    // ADC reads averaged per sample
 constexpr uint32_t ENV_SAMPLE_PERIOD_MS    = 2500;  // DHT11 >= 1 s, DHT22 >= 2 s between reads
 constexpr uint32_t BOOT_SCREEN_MS          = 3000;  // brand/slogan splash
@@ -50,7 +50,7 @@ constexpr bool DEV_SKIP_MQ135_WARMUP = true;
 // Sensor fault detection
 // ---------------------------------------------------------------------------
 constexpr uint8_t  ENV_FAIL_LIMIT     = 3;   // consecutive bad reads -> fault (~7.5 s)
-constexpr uint8_t  MQ135_FAIL_LIMIT   = 5;   // consecutive bad samples -> fault (~5 s)
+constexpr uint8_t  MQ135_FAIL_LIMIT   = 25;  // consecutive bad samples -> fault (~5 s at 5 Hz)
 // MQ-135 alert basis:
 //   true : AO voltage (0..5 V) against thr::AIR_VOLTAGE. No calibration needed.
 //   false: Rs/R0 relative to the calibrated clean-air R0 (thr::AIR_QUALITY).
@@ -74,7 +74,7 @@ constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range
 // ESCALATE: candidate level must persist this long before it is confirmed.
 // RECOVER : the lower level must be stable this long before de-escalating.
 // ---------------------------------------------------------------------------
-constexpr uint32_t AIR_ESCALATE_MS  = 2000;  // was 5 s; 2 s at user request (short gas puffs)
+constexpr uint32_t AIR_ESCALATE_MS  = 0;     // INSTANT (user request); was 5 s, then 2 s
 constexpr uint32_t AIR_RECOVER_MS   = 10000;  // was 60 s; 10 s at user request (gas gone -> normal)
 constexpr uint32_t TEMP_ESCALATE_MS = 10000;
 constexpr uint32_t TEMP_RECOVER_MS  = 60000;

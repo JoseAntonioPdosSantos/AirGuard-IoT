@@ -76,7 +76,7 @@ src/
 |---|---|---|---|
 | 0 | `rp2040.wdt_reset()` | toda iteração | — |
 | 1 | Console serial | toda iteração (≤ 64 caracteres) | µs |
-| 2 | Sensores: MQ-135 | 1 s | ~30 µs (16 conversões ADC) |
+| 2 | Sensores: MQ-135 | 200 ms | ~30 µs (16 conversões ADC) |
 | 2 | Sensores: DHT11 / DHT22 / AHT20 | 2,5 s | ~25 ms (DHTxx: 20 ms de sinal de início + leitura) / ~80 ms (AHT20) |
 | 3 | Alertas (classificação, eventos, flags de sistema) | toda iteração | µs |
 | 4 | Rádio (UART, RX, TX, fila, retransmissão) | toda iteração | ~22 ms para escrever um `AT+SEND` de 240 B a 115200 baud |
@@ -98,7 +98,7 @@ O watchdog é de 8 s, e o pior caso de uma iteração fica abaixo de 150 ms.
 
 | Categoria | Subida (escalate) | Recuperação (recover) | Histerese de valor |
 |---|---|---|---|
-| AIR_QUALITY | 2 s | 10 s | 5 pontos de índice (modo tensão: 0,3 V) |
+| AIR_QUALITY | imediato | 10 s | 5 pontos de índice (modo tensão: 0,3 V) |
 | TEMPERATURE | 10 s | 60 s | 1,0 °C |
 | HUMIDITY | 30 s | 120 s | 3 %UR |
 | SYSTEM | imediato (flags) | imediato | — |

@@ -305,11 +305,12 @@ TEST(mq135_voltage_thresholds_map_volts) {
   HysteresisClassifier c(thr::AIR_VOLTAGE);
   CHECK(c.update(100 * 0.5f / 5) == Severity::Normal);   // clean air ~0.5 V
   CHECK(c.update(100 * 0.9f / 5) == Severity::Normal);
-  CHECK(c.update(100 * 1.1f / 5) == Severity::Low);     // LOW from 1.0 V
-  CHECK(c.update(100 * 2.6f / 5) == Severity::Medium);
-  CHECK(c.update(100 * 3.6f / 5) == Severity::High);
-  CHECK(c.update(100 * 3.3f / 5) == Severity::High);     // within 0.3 V hysteresis
-  CHECK(c.update(100 * 3.1f / 5) == Severity::Medium);
+  CHECK(c.update(100 * 1.1f / 5) == Severity::Medium);  // no LOW: MEDIUM from 1.0 V
+  CHECK(c.update(100 * 2.6f / 5) == Severity::High);    // HIGH from 2.5 V
+  CHECK(c.update(100 * 2.3f / 5) == Severity::High);    // within 0.3 V hysteresis
+  CHECK(c.update(100 * 2.1f / 5) == Severity::Medium);
+  CHECK(c.update(100 * 0.8f / 5) == Severity::Medium);  // stays until < 0.7 V
+  CHECK(c.update(100 * 0.6f / 5) == Severity::Normal);  // never passes through LOW
 }
 
 TEST(mq135_voltage_from_rs_inverts_rs_formula) {
@@ -332,6 +333,6 @@ TEST(mq135_voltage_mode_follows_a_gas_step_quickly) {
   for (int i = 0; i < 10; ++i, t += 1000) m.addSample(rawFor(0.45f), 20, 33, false, t);
   int secs = 0;
   while (m.last().vFiltered < 2.5f && secs < 30) { m.addSample(rawFor(3.0f), 20, 33, false, t); t += 1000; ++secs; }
-  CHECK(secs <= 5);
+  CHECK(secs <= 1);  // instant attack: first sample above the threshold
   CHECK(m.last().index >= 50.0f);
 }

@@ -34,13 +34,13 @@ O plano tem dois níveis:
 | 1 | Inicialização | Energizar e observar o log e o OLED | Relé desligado desde o 1º instante; bipe curto; tela de boot de 3 s com nome e slogan; log `BOOT` com versão, boot #, R0; `SSD1306 ok`; após ~1 s, `RYLR998 ok: 915000000 Hz SF8 ...`; LED verde aceso; LED amarelo piscando devagar durante o aquecimento |
 | 2 | Aquecimento e estabilização do MQ-135 | Energizar com sensor já com burn-in e registrar `Rs` (STAT, 10 s) por 30 min | OLED `WARMUP mm:ss` por 5 min; nenhum alerta AIR durante o aquecimento. **Medir** o tempo até Rs variar < 2 %/min e ajustar `MQ135_WARMUP_MS` |
 | 3 | Ambiente normal | Calibrado e em ar limpo, 22–25 °C, 40–55 %UR, observar 10 min | Tela principal `NORMAL`/`MONITORING`; LED verde aceso, amarelo e vermelho apagados; buzzer e relé desligados; nenhum TX |
-| 4 | Alteração inicial do ar | `sim air 25` (modo tensão; 1,25 V) | Após 2 s: ALERT AIR_QUALITY LOW; 2 bipes/30 s; tela de alerta fixa; LED amarelo aceso; relé desligado |
-| 5 | Alteração média do ar | `sim air 55` (2,75 V) | Após 2 s: ALERT MEDIUM (`prev` LOW); 3 bipes/5 s; severidade piscando; LED amarelo piscando; relé desligado |
-| 6 | Alteração crítica do ar | `sim air 75` (3,75 V) | Após 2 s: ALERT HIGH, **transmitido antes de qualquer outra mensagem pendente** (o MEDIUM sem ACK é substituído); buzzer contínuo/urgente; tela inteira piscando; **relé energizado; LED verde apagado** (contato NC aberto); LED vermelho piscando |
+| 4 | Alteração inicial do ar | *(modo tensão: não há LOW para gás)* | ALERT AIR_QUALITY LOW só no modo Rs/R0; 2 bipes/30 s; tela de alerta fixa; LED amarelo aceso; relé desligado |
+| 5 | Alteração média do ar | `sim air 25` (1,25 V) | Imediato: ALERT MEDIUM (`prev` LOW); 3 bipes/5 s; severidade piscando; LED amarelo piscando; relé desligado |
+| 6 | Alteração crítica do ar | `sim air 55` (2,75 V) | Imediato: ALERT HIGH, **transmitido antes de qualquer outra mensagem pendente** (o MEDIUM sem ACK é substituído); buzzer contínuo/urgente; tela inteira piscando; **relé energizado; LED verde apagado** (contato NC aberto); LED vermelho piscando |
 | 7 | Temperatura acima da atenção | `sim temp 28` e `sim hum 50` | Após 10 s: ALERT TEMPERATURE LOW (aparente ≥ 26,7 °C). `sim temp 33` → MEDIUM |
 | 8 | Temperatura acima do crítico | `sim temp 41` | Após 10 s: ALERT TEMPERATURE HIGH; relé energizado; tela mostra `Temp` e `Feels` |
 | 9 | Umidade abaixo da faixa | `sim temp 22`, `sim hum 28` | Após 30 s: ALERT HUMIDITY LOW; `sim hum 18` → HIGH. Fisicamente, o DHT11 não mede < 20 %UR (doc 05), então só a simulação cobre MEDIUM/HIGH baixos |
-| 10 | Umidade acima da faixa | `sim hum 72` → LOW, `sim hum 82` → MEDIUM, `sim hum 90` → HIGH | Cada nível após 30 s de persistência |
+| 10 | Umidade acima da faixa | `sim hum 77` → LOW, `sim hum 82` → MEDIUM, `sim hum 90` → HIGH | Cada nível após 30 s de persistência |
 | 11 | Recebimento de mensagem LoRa | Gateway envia o TEXT da especificação (ou `sim text Atenção: verifique a cozinha.`) | Log `RX TEXT #205 from WHATSAPP_GATEWAY`; acentos transliterados; **ACK enviado** (`ack_for`=205) |
 | 12 | Exibição por 3 s | Cronometrar com vídeo (≥ 30 fps) | Página visível 3,0 s (± 1 quadro de display, 250 ms) |
 | 13 | Restauração da tela principal | Após o teste 12, com estado normal | Volta automaticamente à tela principal (ou ao alerta ativo). Com HIGH ativo: faixa piscante durante a mensagem e ≥ 3 s de tela de alerta entre mensagens |

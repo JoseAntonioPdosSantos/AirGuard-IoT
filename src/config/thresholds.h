@@ -44,11 +44,13 @@ constexpr ThresholdSet AIR_QUALITY = {
 // ---------------------------------------------------------------------------
 // Air quality by AO VOLTAGE (cfg::AIR_ALERT_BY_VOLTAGE = true, no R0 needed).
 // air_index = 100 * V(AO) / 5 V, i.e. the AO voltage in percent of 5 V:
-//   1.0 V = 20, 2.5 V = 50, 3.5 V = 70; hysteresis 0.3 V = 6.
+//   MEDIUM from 1.0 V (= 20), HIGH from 2.5 V (= 50); hysteresis 0.3 V = 6.
+//   No LOW level for gas (user request): LOW == MEDIUM threshold, so the
+//   classifier goes NORMAL -> MEDIUM directly.
 // Bench values (ESP32, this sensor): clean air ~0.5 V, gas lighter near the
 // sensor -> close to 5 V. INITIAL values: adjust after observing your kitchen.
 // ---------------------------------------------------------------------------
-constexpr float AO_LOW_V = 1.0f, AO_MEDIUM_V = 2.5f, AO_HIGH_V = 3.5f, AO_HYST_V = 0.3f;
+constexpr float AO_LOW_V = 1.0f, AO_MEDIUM_V = 1.0f, AO_HIGH_V = 2.5f, AO_HYST_V = 0.3f;
 constexpr ThresholdSet AIR_VOLTAGE = {
     /*above*/ {true, AO_LOW_V * 20.0f, AO_MEDIUM_V * 20.0f, AO_HIGH_V * 20.0f},
     /*below*/ {false, 0, 0, 0},
@@ -72,7 +74,7 @@ constexpr ThresholdSet TEMPERATURE = {
 // ---------------------------------------------------------------------------
 // Relative humidity (%)
 //  30..60 %   EPA recommended indoor range (ideally 30-50 %)
-//  > 70 % LOW  EPA says keep below 60 % (mould risk); raised to 70 % by the
+//  > 75 % LOW  EPA says keep below 60 % (mould risk); raised to 75 % by the
 //              user (local ambient RH ~65-70 % would keep LOW always on)
 //  > 80 % MED  sustained RH >70-80 % favours mould growth on surfaces
 //              (raised from 70 % by the user: local ambient RH is often ~70 %)
@@ -80,7 +82,7 @@ constexpr ThresholdSet TEMPERATURE = {
 //  < 30 % LOW, < 25 % MED, < 20 % HIGH: dryness/irritation (prototype)
 // ---------------------------------------------------------------------------
 constexpr ThresholdSet HUMIDITY = {
-    /*above*/ {true, 70.0f, 80.0f, 85.0f},
+    /*above*/ {true, 75.0f, 80.0f, 85.0f},
     /*below*/ {true, 30.0f, 25.0f, 20.0f},
     /*hyst */ 3.0f};
 
@@ -113,7 +115,9 @@ constexpr float    R0_MAX_PLAUSIBLE  = 2.0e6f;
 // ---- Filtering -------------------------------------------------------------
 constexpr uint8_t MEDIAN_WINDOW = 5;     // odd, <= 9
 constexpr float   EMA_ALPHA     = 0.25f; // 0..1, higher = faster
-// Voltage mode filters the AO VOLTAGE itself (not Rs): averaging Rs and
+// Voltage mode: INSTANT attack (a rising AO value is used as is, so the alarm
+// fires on the first sample above the threshold) and median + EMA release.
+// It filters the AO VOLTAGE itself (not Rs): averaging Rs and
 // converting back to volts is dominated by the large clean-air Rs and made
 // the alarm lag ~20 s behind the OLED value on the bench.
 constexpr uint8_t V_MEDIAN_WINDOW = 3;   // odd, <= 9 (1 s samples -> 1 s delay)
