@@ -438,7 +438,7 @@ void AirGuardApp::printStatus(uint32_t now) {
        env_.temperature(), env_.humidity(), env_.heatIndex(),
        env_.faulted() ? "FAULT" : (env_.valid() ? "ok" : "invalid"), a.raw, a.vAdc, a.vSensor,
        a.rsFiltered, a.ratio, a.index,
-       air_.faulted() ? "FAULT" : (air_.warmingUp(now) ? "WARMUP" : (air_.calibrated() ? "ok" : "UNCAL")),
+       air_.faulted() ? "FAULT" : (air_.warmingUp(now) ? "WARMUP" : (air_.usable(now) ? "ok" : "UNCAL")),
        air_.simulating() ? " SIM" : "");
   LOGI("STAT", "sev AIR=%s TEMP=%s HUM=%s SYS=%s (flags 0x%02X) | relay=%s buzzer=%s | "
        "LoRa=%s queue=%u waitACK=%u",
