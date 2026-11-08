@@ -30,7 +30,7 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 |---|---|---|---|
 | HUMIDITY_NORMAL | 30 % < UR < 60 % | NORMAL | EPA: manter UR abaixo de 60 %, idealmente entre 30 e 50 % |
 | HUMIDITY_WARNING (alta) | UR ≥ 60 % | LOW | EPA: crescimento de mofo |
-| HUMIDITY_WARNING (alta) | UR ≥ 70 % | MEDIUM | UR sustentada > 70–80 % favorece mofo em superfícies |
+| HUMIDITY_WARNING (alta) | UR ≥ 80 % | MEDIUM | UR sustentada > 70–80 % favorece mofo em superfícies. Era 70 %; elevado a pedido do usuário porque a UR ambiente local fica perto de 70 % |
 | HUMIDITY_CRITICAL (alta) | UR ≥ 85 % | HIGH | **protótipo:** condensação provável (vapor intenso, vazamento) |
 | HUMIDITY_WARNING (baixa) | UR ≤ 30 % | LOW | EPA (limite inferior recomendado) |
 | HUMIDITY_WARNING (baixa) | UR ≤ 25 % | MEDIUM | **protótipo:** ressecamento e irritação |
