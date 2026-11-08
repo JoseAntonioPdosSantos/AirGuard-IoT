@@ -37,16 +37,30 @@ sensor recebe o ACK e o `NO ACK` some.
 
 Rosqueie a antena do RYLR998 antes de ligar.
 
-### Alimentação do LCD: atenção
+### Alimentação do LCD: montagem usada na bancada
 
-O LCD 16x2 é feito para **5 V**, e o módulo I2C tem resistores pull-up ligados ao **VCC do LCD**.
-Os GPIO da RP2040 **não toleram 5 V**.
+O LCD 16x2 é feito para **5 V**. Em 3,3 V ele funciona, mas fica **muito apagado**, porque o
+contraste não alcança o nível necessário. O módulo I2C (PCF8574) tem **pull-ups de ~4,6 kΩ para o
+VCC**. Isso foi medido na bancada com a própria RP2040: SDA em 4,14 V com carga de 20 kΩ e em
+3,01 V com carga de 6,7 kΩ, o que dá VCC ≈ 5,1 V e pull-up ≈ 4,6 kΩ. Com o LCD em 5 V, o SDA e o
+SCL ficariam em ~5 V, e a RP2040 **não tolera 5 V**.
 
-1. **Primeiro tente com o VCC do LCD no 3V3** e gire o **potenciômetro azul** atrás do módulo
-   (contraste) até os caracteres aparecerem. Muitos LCDs funcionam assim, com contraste mais fraco.
-2. Se não aparecer nada com o contraste no máximo: alimente o LCD com **5 V** e use um
-   **conversor de nível lógico bidirecional** (ex.: módulo BSS138) entre GP4/GP5 e SDA/SCL.
-   **Não** ligue SDA/SCL de um LCD alimentado com 5 V direto na RP2040.
+Montagem atual: **VCC do LCD no 5V** e **um resistor de 10 kΩ de cada linha (SDA e SCL) para o
+GND**. Isso forma um divisor com os pull-ups do módulo, e as linhas ficam em ~3,5 V.
+
+```
+LCD VCC ── 5V (jumper direto, NÃO no trilho do 3V3 do rádio)
+LCD GND ── GND
+LCD SDA ──┬── GP4          LCD SCL ──┬── GP5
+          └─[10 kΩ]─ GND             └─[10 kΩ]─ GND
+```
+
+É um **meio-termo**: 3,5 V fica acima dos 3,3 V recomendados para a RP2040 (mas abaixo do máximo
+absoluto, ~3,8 V) e um pouco abaixo do "1" especificado para o PCF8574 em 5 V (0,7 × VCC ≈ 3,6 V).
+Funcionou na bancada. **A solução recomendada é um conversor de nível bidirecional (BSS138)**:
+LV → 3V3, HV → 5V, LV1/HV1 → GP4/SDA, LV2/HV2 → GP5/SCL, sem os resistores de 10 kΩ.
+
+Depois de passar o LCD para 5 V, **reajuste o potenciômetro azul** (contraste) atrás do módulo.
 
 ## Telas do LCD
 
