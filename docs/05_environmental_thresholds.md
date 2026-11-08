@@ -55,10 +55,10 @@ MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O 
 
 | Tensão no AO | `air_index` | Severidade |
 |---|---|---|
-| < 1,0 V | < 20 | NORMAL |
-| ≥ 1,0 V | ≥ 20 | **MEDIUM** (não há LOW para gás, a pedido do usuário) |
-| ≥ 2,5 V | ≥ 50 | HIGH |
-| histerese | 0,3 V (6 pontos) | |
+| < 0,30 V | < 6 | NORMAL |
+| ≥ 0,30 V | ≥ 6 | **MEDIUM** (não há LOW para gás, a pedido do usuário) |
+| ≥ 1,0 V | ≥ 20 | HIGH |
+| histerese | 0,05 V (1 ponto) | |
 
 Valores **iniciais**, definidos pela bancada: ar limpo ~0,5 V; isqueiro perto do sensor leva o AO a quase
 5 V. Ajuste `AO_LOW_V`, `AO_MEDIUM_V` e `AO_HIGH_V` em `thresholds.h` após observar a cozinha real.

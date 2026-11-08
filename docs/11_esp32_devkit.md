@@ -84,11 +84,11 @@ upload ficar em `Connecting....`, segure o botão **BOOT** até começar a grava
 - Observado na bancada: com o AO solto e com o pino sem sinal, o ADC devolveu sempre 176 contagens (~0,14 V), não 0. Isso bate com o piso de leitura do ADC do ESP32 com atenuação de 11 dB. Por isso `MQ135_ADC_MIN_VALID = 200` (~0,16 V) no ESP32: abaixo disso o firmware acusa falha do MQ-135 (AO solto ou em curto).
 - A precisão do ADC do ESP32 varia de chip para chip. A calibração R0 (`cal start`) absorve um erro
   fixo, mas não a não linearidade perto dos extremos da faixa.
-- **Alarme do MQ-135 pela tensão do AO** (`AIR_ALERT_BY_VOLTAGE = true`): MEDIUM ≥ 1,0 V e HIGH ≥ 2,5 V,
+- **Alarme do MQ-135 pela tensão do AO** (`AIR_ALERT_BY_VOLTAGE = true`): MEDIUM ≥ 0,30 V e HIGH ≥ 1,0 V,
   sem LOW, disparo imediato (doc 05). Com o divisor 10k/20k, o pino satura em ~3,1 V (AO ≈ 4,7 V); isso só
   acontece com gás forte, então a saturação é tratada como **valor alto** e não como falha
   (`MQ135_ADC_MAX_VALID = 4095` no ESP32). A falha continua sendo detectada no piso (AO solto, ~0 V).
-- Nos testes por simulação, `sim air` recebe o índice (0–100): `sim air 25` = MEDIUM, `sim air 55` = HIGH.
+- Nos testes por simulação, `sim air` recebe o índice (0–100): `sim air 10` = MEDIUM, `sim air 25` = HIGH.
 - **Piso do ADC (bancada):** com o sensor ligado por horas, o AO em ar limpo caiu de ~0,45 V para menos
   de ~0,21 V, abaixo do que o ESP32 mede com este divisor. Nesse ponto, "ar muito limpo" e "fio do AO
   solto" dão a mesma leitura (ADC 176). Com `MQ135_FLOOR_IS_FAULT = false` (padrão atual de bancada),

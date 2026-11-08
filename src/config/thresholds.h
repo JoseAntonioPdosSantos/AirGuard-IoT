@@ -44,13 +44,16 @@ constexpr ThresholdSet AIR_QUALITY = {
 // ---------------------------------------------------------------------------
 // Air quality by AO VOLTAGE (cfg::AIR_ALERT_BY_VOLTAGE = true, no R0 needed).
 // air_index = 100 * V(AO) / 5 V, i.e. the AO voltage in percent of 5 V:
-//   MEDIUM from 1.0 V (= 20), HIGH from 2.5 V (= 50); hysteresis 0.3 V = 6.
+//   MEDIUM from 0.30 V (= 6), HIGH from 1.0 V (= 20); hysteresis 0.05 V = 1.
+//   (user request). Clean air on the bench is ~0.21-0.27 V, so MEDIUM is very
+//   close to the baseline: expect occasional false MEDIUM. The hysteresis must
+//   stay well below 0.30 V or the alarm could never clear.
 //   No LOW level for gas (user request): LOW == MEDIUM threshold, so the
 //   classifier goes NORMAL -> MEDIUM directly.
 // Bench values (ESP32, this sensor): clean air ~0.5 V, gas lighter near the
 // sensor -> close to 5 V. INITIAL values: adjust after observing your kitchen.
 // ---------------------------------------------------------------------------
-constexpr float AO_LOW_V = 1.0f, AO_MEDIUM_V = 1.0f, AO_HIGH_V = 2.5f, AO_HYST_V = 0.3f;
+constexpr float AO_LOW_V = 0.30f, AO_MEDIUM_V = 0.30f, AO_HIGH_V = 1.0f, AO_HYST_V = 0.05f;
 constexpr ThresholdSet AIR_VOLTAGE = {
     /*above*/ {true, AO_LOW_V * 20.0f, AO_MEDIUM_V * 20.0f, AO_HIGH_V * 20.0f},
     /*below*/ {false, 0, 0, 0},
