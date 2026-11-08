@@ -90,6 +90,14 @@ bool LcdView::begin() {
   return true;
 }
 
+bool LcdView::stillThere() {
+  if (!ok_) return false;
+  if (probe(addr_)) return true;
+  ok_ = false;
+  Serial.printf("[LCD] backpack 0x%02X stopped answering (loose SDA/SCL/VCC?)\r\n", addr_);
+  return false;
+}
+
 void LcdView::show(const char* l1, const char* l2) {
   if (!ok_) return;
   const char* lines[2] = {l1, l2};

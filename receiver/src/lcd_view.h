@@ -30,6 +30,8 @@ class LcdView {
   bool begin();                         // Wire must be configured; finds the backpack
   void show(const char* l1, const char* l2);  // writes only lines that changed
   bool ok() const { return ok_; }
+  // Checks that the backpack still ACKs; marks the LCD lost (and logs) if not.
+  bool stillThere();
   uint8_t address() const { return addr_; }
 
  private:

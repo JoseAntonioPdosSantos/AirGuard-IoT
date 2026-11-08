@@ -21,9 +21,6 @@ constexpr uint8_t I2C_SCL      = 5;  // LCD backpack SCL (I2C0)
 constexpr uint8_t LED_GREEN    = 6;  // through 220 ohm-1 kOhm
 constexpr uint8_t LED_YELLOW   = 7;
 constexpr uint8_t LED_RED      = 8;
-// Bench probe (no multimeter): line -> 10k -> GP26 (ADC0) -> 10k -> GND, so the
-// logged value x2 is the line voltage (max 2.5 V at the pin for 5 V).
-constexpr uint8_t PROBE_ADC    = 26;
 
 // ---- radio: identical to the node except the address ----------------------
 constexpr uint32_t LORA_UART_BAUD    = 115200;
