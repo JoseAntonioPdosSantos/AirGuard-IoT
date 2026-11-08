@@ -89,3 +89,9 @@ upload ficar em `Connecting....`, segure o botão **BOOT** até começar a grava
   acontece com gás forte, então a saturação é tratada como **valor alto** e não como falha
   (`MQ135_ADC_MAX_VALID = 4095` no ESP32). A falha continua sendo detectada no piso (AO solto, ~0 V).
 - Nos testes por simulação, `sim air` recebe o índice (0–100): `sim air 25` = MEDIUM, `sim air 55` = HIGH.
+- **Piso do ADC (bancada):** com o sensor ligado por horas, o AO em ar limpo caiu de ~0,45 V para menos
+  de ~0,21 V, abaixo do que o ESP32 mede com este divisor. Nesse ponto, "ar muito limpo" e "fio do AO
+  solto" dão a mesma leitura (ADC 176). Com `MQ135_FLOOR_IS_FAULT = false` (padrão atual de bancada),
+  o piso é tratado como ar limpo: **um fio solto não é detectado**. Para uso real, volte a `true`, ou
+  meça o AO com mais resolução (divisor 10k/10k ou atenuação menor no ADC).
+

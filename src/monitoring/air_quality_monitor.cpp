@@ -80,7 +80,8 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   s.vSensor = pinToSensorVoltage(s.vAdc);
   s.rsInstant = computeRs(s.vSensor);
 
-  const bool rangeOk = rawAdc >= cfg::MQ135_ADC_MIN_VALID && rawAdc <= cfg::MQ135_ADC_MAX_VALID;
+  const bool floorOk = !cfg::MQ135_FLOOR_IS_FAULT || rawAdc >= cfg::MQ135_ADC_MIN_VALID;
+  const bool rangeOk = floorOk && rawAdc <= cfg::MQ135_ADC_MAX_VALID;
   if (simFault_ || !rangeOk || s.rsInstant <= 0) {
     if (failCount_ < 255) ++failCount_;
     okCount_ = 0;

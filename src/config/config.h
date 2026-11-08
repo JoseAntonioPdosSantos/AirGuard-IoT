@@ -55,6 +55,12 @@ constexpr bool DEV_SKIP_MQ135_WARMUP = true;
 // ---------------------------------------------------------------------------
 constexpr uint8_t  ENV_FAIL_LIMIT     = 3;   // consecutive bad reads -> fault (~7.5 s)
 constexpr uint8_t  MQ135_FAIL_LIMIT   = 25;  // consecutive bad samples -> fault (~5 s at 5 Hz)
+// ADC at its floor (ESP32: AO below ~0.21 V) -> sensor FAULT?
+//   true : safest; an open AO wire is detected (SYSTEM alert).
+//   false: BENCH setting (user request). After hours powered, this sensor's
+//          clean-air AO drifted below what the ESP32 ADC can measure, so the
+//          floor is read as clean air. An open AO wire is then NOT detected.
+constexpr bool MQ135_FLOOR_IS_FAULT = false;
 // Consecutive GOOD samples needed to clear a fault (~2 s). With AO open, ADC
 // noise sometimes crosses the floor for one sample: without this the fault
 // flapped ALERT/RECOVERY every ~8 s and each event went out over LoRa.
