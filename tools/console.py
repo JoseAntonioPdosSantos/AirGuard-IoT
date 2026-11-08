@@ -33,6 +33,8 @@ def main() -> int:
     p = serial.Serial(port, 115200, timeout=0.1)
     time.sleep(0.3)
     p.reset_input_buffer()
+    p.write(b"\r\n")  # terminate any stray bytes already in the board's line buffer
+    time.sleep(0.05)
     for c in args.commands:
         p.write((c + "\r\n").encode())
     t0, buf = time.time(), b""
