@@ -63,8 +63,8 @@ cor só.
 └──────────────────────────┘
 ```
 - A linha "Air" mostra `WARMUP mm:ss`, `NO CAL` (sem calibração) ou `FAIL` (falha do sensor)
-- A linha `AO` mostra a tensão na saída AO do MQ-135 (0–5 V, o divisor já descontado), em todos os estados, inclusive no aquecimento e na falha, para conferir a ligação sem o console. Com o sensor calibrado, mostra também o índice relativo.
   quando for o caso.
+- A linha `AO` mostra a tensão na saída AO do MQ-135 (0–5 V, o divisor já descontado), em todos os estados, inclusive no aquecimento e na falha, para conferir a ligação sem o console. Com o sensor calibrado, mostra também o índice relativo.
 - "Status" pode ser `MONITORING`, `WARMING UP`, `CAL nn%` ou `SENSOR FAULT`.
 - `SIM` aparece quando há uma simulação ativa.
 - Leituras inválidas aparecem como `--.-`, nunca como um valor antigo apresentado como atual.
