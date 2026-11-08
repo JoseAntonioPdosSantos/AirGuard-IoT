@@ -74,6 +74,10 @@ void AirGuardApp::setup() {
   mq_.begin();
   air_.setVoltageMode(cfg::AIR_ALERT_BY_VOLTAGE);
   air_.begin(bootMs_, st.r0, st.r0Valid != 0);
+  if (cfg::DEV_SKIP_MQ135_WARMUP) {
+    air_.skipWarmup();
+    LOGW("BOOT", "DEV: MQ-135 warm-up DISABLED (cfg::DEV_SKIP_MQ135_WARMUP) - not for deployment");
+  }
   if (cfg::AIR_ALERT_BY_VOLTAGE)
     LOGI("BOOT", "MQ-135 alerts by AO voltage: LOW %.1f V, MEDIUM %.1f V, HIGH %.1f V",
          thr::AO_LOW_V, thr::AO_MEDIUM_V, thr::AO_HIGH_V);
@@ -91,7 +95,7 @@ void AirGuardApp::setup() {
   buzzer_.chirp(millis());
   board::watchdogBegin(cfg::WATCHDOG_TIMEOUT_MS);
   LOGI("BOOT", "MQ-135 warm-up %lu s. Type 'help' for console commands.",
-       static_cast<unsigned long>(cfg::MQ135_WARMUP_MS / 1000));
+       static_cast<unsigned long>(cfg::DEV_SKIP_MQ135_WARMUP ? 0 : cfg::MQ135_WARMUP_MS / 1000));
 }
 
 // ===========================================================================

@@ -42,6 +42,9 @@ constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;  // RP2040 max is ~8.3 s; ESP
 // settling time (docs/04_calibration_mq135.md) and adjust.
 // ---------------------------------------------------------------------------
 constexpr uint32_t MQ135_WARMUP_MS = 5UL * 60UL * 1000UL;
+// DEVELOPMENT ONLY: skip the warm-up at every boot (alarms active at once,
+// readings of a cold sensor are NOT trustworthy). Set to false before deploying.
+constexpr bool DEV_SKIP_MQ135_WARMUP = true;
 
 // ---------------------------------------------------------------------------
 // Sensor fault detection
