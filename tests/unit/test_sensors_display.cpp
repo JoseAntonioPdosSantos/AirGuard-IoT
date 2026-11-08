@@ -304,7 +304,8 @@ TEST(mq135_voltage_mode_index_is_ao_percent) {
 TEST(mq135_voltage_thresholds_map_volts) {
   HysteresisClassifier c(thr::AIR_VOLTAGE);
   CHECK(c.update(100 * 0.5f / 5) == Severity::Normal);   // clean air ~0.5 V
-  CHECK(c.update(100 * 1.6f / 5) == Severity::Low);
+  CHECK(c.update(100 * 0.9f / 5) == Severity::Normal);
+  CHECK(c.update(100 * 1.1f / 5) == Severity::Low);     // LOW from 1.0 V
   CHECK(c.update(100 * 2.6f / 5) == Severity::Medium);
   CHECK(c.update(100 * 3.6f / 5) == Severity::High);
   CHECK(c.update(100 * 3.3f / 5) == Severity::High);     // within 0.3 V hysteresis

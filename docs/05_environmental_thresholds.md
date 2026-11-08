@@ -55,8 +55,8 @@ MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O 
 
 | Tensão no AO | `air_index` | Severidade |
 |---|---|---|
-| < 1,5 V | < 30 | NORMAL |
-| ≥ 1,5 V | ≥ 30 | LOW |
+| < 1,0 V | < 20 | NORMAL |
+| ≥ 1,0 V | ≥ 20 | LOW |
 | ≥ 2,5 V | ≥ 50 | MEDIUM |
 | ≥ 3,5 V | ≥ 70 | HIGH |
 | histerese | 0,3 V (6 pontos) | |
