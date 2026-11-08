@@ -72,7 +72,12 @@ bool LcdView::begin() {
   for (uint8_t a = 0x20; !addr_ && a <= 0x3F; ++a)
     if ((a <= 0x27 || a >= 0x38) && probe(a)) addr_ = a;
   if (!addr_) {
-    Serial.print("[LCD] no PCF8574 backpack found on I2C (check SDA/SCL, VCC)\r\n");
+    // List whatever answers, to tell "nothing on the bus" from "unexpected address".
+    Serial.print("[LCD] no PCF8574 backpack found. I2C scan:");
+    int found = 0;
+    for (uint8_t a = 0x08; a < 0x78; ++a)
+      if (probe(a)) { Serial.printf(" 0x%02X", a); ++found; }
+    Serial.print(found ? "\r\n" : " nothing (check SDA->GP4, SCL->GP5, VCC, GND)\r\n");
     return false;
   }
   g_lcd = new (g_lcdMem) LiquidCrystal_I2C(addr_, 16, 2);

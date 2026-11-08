@@ -136,6 +136,17 @@ void loop() {
 
   updateLeds(now);
 
+  // Periodic status (also re-probes the LCD if it was not found at boot).
+  static uint32_t lastStat = 0;
+  if ((uint32_t)(now - lastStat) >= 10000) {
+    lastStat = now;
+    if (!g_lcd.ok()) g_lcd.begin();
+    Serial.printf("[STAT] LCD %s (0x%02X) | LoRa %s | events %lu, heartbeats %lu | overall %s%s\r\n",
+                  g_lcd.ok() ? "ok" : "NOT FOUND", g_lcd.address(), g_radio.ok() ? "ok" : "FAULT",
+                  static_cast<unsigned long>(g_state.events()), static_cast<unsigned long>(g_state.heartbeats()),
+                  rx::sevName(g_state.overall()), g_state.lost(now, rxcfg::LINK_TIMEOUT_MS) ? " (SEM SINAL)" : "");
+  }
+
   static uint32_t lastLcd = 0;
   if ((uint32_t)(now - lastLcd) >= 200) {
     lastLcd = now;
