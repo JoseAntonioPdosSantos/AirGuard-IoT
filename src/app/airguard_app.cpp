@@ -176,7 +176,7 @@ uint16_t AirGuardApp::computeSystemFlags(uint32_t now) const {
   if (air_.faulted()) f |= SYS_AIR_SENSOR_FAULT;
   if (!cfg::AIR_ALERT_BY_VOLTAGE && !air_.calibrated() && !air_.warmingUp(now) && !air_.usable(now))
     f |= SYS_MQ135_UNCAL;
-  if (lora_.state() == LoraManager::State::Fault) f |= SYS_LORA_RADIO_FAULT;
+  if (loraFaultLatched_) f |= SYS_LORA_RADIO_FAULT;
   if (!ack_.linkHealthy()) f |= SYS_LORA_NO_ACK;
   if (!oled_.ok()) f |= SYS_DISPLAY_FAULT;
   return f;
@@ -244,6 +244,9 @@ void AirGuardApp::queueEvent(const AlertEvent& e, uint32_t now) {
 // ---------------------------------------------------------------------------
 void AirGuardApp::taskRadio(uint32_t now) {
   lora_.loop(now);
+  if (lora_.state() == LoraManager::State::Fault) loraFaultLatched_ = true;
+  else if (lora_.state() == LoraManager::State::Rx || lora_.state() == LoraManager::State::Tx)
+    loraFaultLatched_ = false;
 
   bool ok;
   if (lora_.takeTxDone(ok) && inFlight_) {

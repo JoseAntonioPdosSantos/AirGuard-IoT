@@ -78,6 +78,9 @@ class AirGuardApp {
 
   // radio bookkeeping
   bool      inFlight_ = false;
+  // Latched radio fault: stays set through the 30 s re-init attempts until the
+  // module is really back, so SYSTEM does not flap ALERT/RECOVERY every 30 s.
+  bool      loraFaultLatched_ = false;
   uint32_t  inFlightId_ = 0;
   uint32_t  ackSeq_ = 0;
   uint32_t  lastEventId_[CATEGORY_COUNT] = {};
