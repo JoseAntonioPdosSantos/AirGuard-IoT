@@ -17,6 +17,9 @@ alignas(AlertManager) uint8_t g_alertStorage[sizeof(AlertManager)];
 
 constexpr uint8_t PRIO_ACK = 6;
 constexpr uint32_t ACK_ID_TAG = 0xF0000000UL;  // ids of our ACK replies (never events)
+constexpr uint32_t HB_ID_TAG  = 0xE0000000UL;  // ids of heartbeats (never events)
+constexpr uint8_t  PRIO_HEARTBEAT = 1;           // lowest: after every event
+constexpr int8_t   HB_SUPERSEDE_KEY = 8;         // only the newest heartbeat waits
 
 uint8_t priorityFor(const AlertEvent& e) {
   if (e.kind == EventKind::Recovery) return 2;
@@ -255,9 +258,11 @@ void AirGuardApp::taskRadio(uint32_t now) {
     if (ok) {
       ack_.onTransmitted(inFlightId_, now);
       const AckManager::Entry* en = ack_.find(inFlightId_);
-      LOGI("LORA", "TX done id %lu (airtime %lu ms)%s", static_cast<unsigned long>(inFlightId_),
-           static_cast<unsigned long>(lora_.lastAirtimeMs()),
-           en && en->state == AckManager::State::WaitAck ? ", waiting ACK" : "");
+      const bool hb = (inFlightId_ & 0xF0000000UL) == HB_ID_TAG;
+      logger::log(hb ? LogLevel::Debug : LogLevel::Info, "LORA", "TX done %s %lu (airtime %lu ms)%s",
+                  hb ? "heartbeat" : "id", static_cast<unsigned long>(inFlightId_ & (hb ? 0x0FFFFFFFUL : 0xFFFFFFFFUL)),
+                  static_cast<unsigned long>(lora_.lastAirtimeMs()),
+                  en && en->state == AckManager::State::WaitAck ? ", waiting ACK" : "");
       if (ci >= 0 && link_[ci] == LinkState::Sending) link_[ci] = LinkState::WaitAck;
     } else {
       ack_.onTransmitFailed(inFlightId_, now, 1000);
@@ -270,6 +275,8 @@ void AirGuardApp::taskRadio(uint32_t now) {
   size_t len;
   float rssi, snr;
   while (lora_.takeRx(rx, sizeof rx, len, rssi, snr)) handleFrame(rx, len, rssi, snr, now);
+
+  queueHeartbeat(now);
 
   // Next transmission (only one in flight; never blocks).
   ack_.poll(now);
@@ -302,6 +309,22 @@ void AirGuardApp::taskRadio(uint32_t now) {
     const int8_t ci = categoryOfEvent(lastEventId_, failedId);
     if (ci >= 0) link_[ci] = LinkState::Failed;
   }
+}
+
+void AirGuardApp::queueHeartbeat(uint32_t now) {
+  if (cfg::HEARTBEAT_PERIOD_MS == 0 || !lora_.ready()) return;
+  if ((uint32_t)(now - lastHeartbeatMs_) < cfg::HEARTBEAT_PERIOD_MS) return;
+  lastHeartbeatMs_ = now;
+  Severity lv[CATEGORY_COUNT];
+  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) lv[i] = alerts_->category(static_cast<Category>(i));
+  char buf[cfg::LORA_MAX_PAYLOAD + 1];
+  const size_t n = proto::encodeHeartbeat(cfg::DEVICE_ID, cfg::GATEWAY_ID, ++heartbeatSeq_, lv,
+                                          snapshot(now), now / 1000, buf, sizeof buf);
+  if (n == 0) return;
+  const uint32_t qid = HB_ID_TAG | (heartbeatSeq_ & 0x0FFFFFFFUL);
+  if (!ack_.enqueue(qid, PRIO_HEARTBEAT, HB_SUPERSEDE_KEY, false,
+                    reinterpret_cast<const uint8_t*>(buf), n, now))
+    LOGD("LORA", "heartbeat #%lu not queued (queue busy)", static_cast<unsigned long>(heartbeatSeq_));
 }
 
 void AirGuardApp::sendAck(const char* to, uint32_t id, uint32_t now) {

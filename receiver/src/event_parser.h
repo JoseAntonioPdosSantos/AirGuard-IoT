@@ -30,6 +30,19 @@ struct Event {
 
 enum class ParseResult : uint8_t { Ok, NotJson, NotEvent, MissingField, BadValue };
 
+// Heartbeat ("estou vivo") sent by the node every few seconds, no ACK.
+struct Heartbeat {
+  char     device[24] = {};
+  char     dst[24] = {};
+  uint32_t seq = 0;
+  Sev      levels[static_cast<uint8_t>(Cat::Count)] = {};
+  bool     hasAir = false;  uint32_t airIndex = 0;
+  bool     hasTemp = false; float temperature = 0;
+  bool     hasHum = false;  float humidity = 0;
+};
+// Ok for a valid HB; NotEvent if the frame is another type.
+ParseResult parseHeartbeat(const char* data, size_t len, Heartbeat& out);
+
 // `data` need not be NUL-terminated. Unknown keys are ignored.
 ParseResult parseEvent(const char* data, size_t len, Event& out);
 

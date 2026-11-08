@@ -48,6 +48,18 @@ void sendPendingAck(uint32_t now) {
 }
 
 void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr, uint32_t now) {
+  rx::Heartbeat hb;
+  if (rx::parseHeartbeat(data, len, hb) == rx::ParseResult::Ok) {
+    if (strcmp(hb.device, rxcfg::NODE_ID) != 0) return;
+    const bool wasLost = g_state.lost(now, rxcfg::LINK_TIMEOUT_MS);
+    g_lastRssi = rssi;
+    if (g_state.apply(hb, now) || wasLost)
+      Serial.printf("[HB] #%lu levels %s/%s/%s/%s (RSSI %d) -> overall %s%s\r\n",
+                    static_cast<unsigned long>(hb.seq), rx::sevName(hb.levels[0]), rx::sevName(hb.levels[1]),
+                    rx::sevName(hb.levels[2]), rx::sevName(hb.levels[3]), rssi,
+                    rx::sevName(g_state.overall()), wasLost ? " (signal back)" : "");
+    return;
+  }
   rx::Event e;
   const rx::ParseResult r = rx::parseEvent(data, len, e);
   if (r == rx::ParseResult::NotEvent) {
@@ -78,10 +90,11 @@ void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr,
 }
 
 void updateLeds(uint32_t now) {
-  const rx::Led l = g_state.led();
+  const rx::Led l = g_state.led(now, rxcfg::LINK_TIMEOUT_MS);
   const bool blink = (now / rxcfg::WAIT_BLINK_MS) % 2 == 0;
   digitalWrite(rxcfg::LED_GREEN, (l == rx::Led::Green || (l == rx::Led::WaitingBlink && blink)) ? HIGH : LOW);
-  digitalWrite(rxcfg::LED_YELLOW, l == rx::Led::Yellow ? HIGH : LOW);
+  // Lost signal: yellow blinks (the last known state may be outdated).
+  digitalWrite(rxcfg::LED_YELLOW, (l == rx::Led::Yellow || (l == rx::Led::LostBlink && blink)) ? HIGH : LOW);
   digitalWrite(rxcfg::LED_RED, l == rx::Led::Red ? HIGH : LOW);
 }
 
@@ -127,9 +140,9 @@ void loop() {
   if ((uint32_t)(now - lastLcd) >= 200) {
     lastLcd = now;
     char l1[17], l2[17];
-    rx::formatLine1(g_state, l1);
+    rx::formatLine1(g_state, now, rxcfg::LINK_TIMEOUT_MS, l1);
     const bool linkPage = (now / rxcfg::LCD_PAGE_MS) % 2 == 1;
-    rx::formatLine2(g_state, linkPage, g_lastRssi, l2);
+    rx::formatLine2(g_state, linkPage, g_lastRssi, now, rxcfg::LINK_TIMEOUT_MS, l2);
     if (!g_radio.ok() && g_state.anyReceived() == false) snprintf(l2, sizeof l2, "%-16s", "LoRa: FALHA");
     g_lcd.show(l1, l2);
   }

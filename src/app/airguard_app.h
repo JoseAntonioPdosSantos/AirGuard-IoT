@@ -43,6 +43,7 @@ class AirGuardApp {
   // helpers
   void handleFrame(const uint8_t* data, size_t len, float rssi, float snr, uint32_t now);
   void sendAck(const char* to, uint32_t id, uint32_t now);
+  void queueHeartbeat(uint32_t now);
   void queueEvent(const AlertEvent& e, uint32_t now);
   uint16_t computeSystemFlags(uint32_t now) const;
   SensorSnapshot snapshot(uint32_t now) const;
@@ -81,6 +82,8 @@ class AirGuardApp {
   // Latched radio fault: stays set through the 30 s re-init attempts until the
   // module is really back, so SYSTEM does not flap ALERT/RECOVERY every 30 s.
   bool      loraFaultLatched_ = false;
+  uint32_t  lastHeartbeatMs_ = 0;
+  uint32_t  heartbeatSeq_ = 0;
   uint32_t  inFlightId_ = 0;
   uint32_t  ackSeq_ = 0;
   uint32_t  lastEventId_[CATEGORY_COUNT] = {};

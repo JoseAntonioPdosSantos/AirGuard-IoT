@@ -132,6 +132,22 @@ categoria volta ao normal depois da histerese temporal de recuperação.
 | 4 | 16 | Alertas sem ACK (falha de entrega) | LOW |
 | 5 | 32 | Falha do display | LOW |
 
+#### HB, heartbeat "estou vivo" (não exige ACK)
+
+Enviado a cada `cfg::HEARTBEAT_PERIOD_MS` (5 s; 0 desliga), com a **menor prioridade**: qualquer
+alerta sai antes, e só o heartbeat mais recente fica na fila. Leva o nível atual de cada
+categoria em `levels` (4 letras na ordem AIR, TEMP, HUM, SYS: `N`/`L`/`M`/`H`) e as leituras ao vivo.
+O receptor usa o heartbeat para atualizar o LCD, ressincronizar o estado se tiver perdido um
+evento e detectar **perda de sinal** (sem quadros por 15 s).
+
+```json
+{"v":1,"type":"HB","device":"KITCHEN_01","dst":"GATEWAY_01","seq":12,"levels":"NNLN",
+ "air_index":5,"temperature":25.4,"humidity":61,"timestamp":60}
+```
+
+Tempo no ar: ~0,4 s em SF8, ou seja, ~8 % do tempo transmitindo com período de 5 s. Para uso real,
+um período de 30–60 s reduz a ocupação do canal e o consumo.
+
 #### ACK (resposta, não exige ACK)
 
 ```json

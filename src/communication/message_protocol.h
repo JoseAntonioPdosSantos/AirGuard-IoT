@@ -66,6 +66,13 @@ class JsonWriter {
 size_t encodeEvent(const AlertEvent& e, const char* device, const char* dst, char* buf,
                    size_t cap);
 size_t encodeAck(const char* device, const char* dst, uint32_t ackFor, char* buf, size_t cap);
+// Heartbeat ("estou vivo", no ACK): current level of every category as 4 chars
+// in Category order (AIR, TEMP, HUM, SYS), N/L/M/H, plus the live readings.
+//   {"v":1,"type":"HB","device":"KITCHEN_01","dst":"GATEWAY_01","seq":12,
+//    "levels":"NNLN","air_index":5,"temperature":25.4,"humidity":61,"timestamp":60}
+size_t encodeHeartbeat(const char* device, const char* dst, uint32_t seq,
+                       const Severity levels[CATEGORY_COUNT], const SensorSnapshot& s,
+                       uint32_t uptimeS, char* buf, size_t cap);
 
 // Validates and decodes an incoming frame. `ownId` is used to drop frames
 // explicitly addressed to another node (dst present and != ownId and != "*").

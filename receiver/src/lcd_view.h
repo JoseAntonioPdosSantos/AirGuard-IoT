@@ -1,6 +1,7 @@
 // AirGuard Receiver - 16x2 LCD text (pure formatting, unit tested) + driver.
 //
 //   line 1: "AirGuard RX"            before the first message
+//           "SEM SINAL"              no frame (heartbeat) for LINK_TIMEOUT_MS
 //           "NORMAL"                 everything normal
 //           "HIGH: GAS"              worst category and its level
 //   line 2: "25.5C 61% 0.25V"        temperature, humidity, gas (AO volts)
@@ -16,8 +17,10 @@ namespace rx {
 constexpr size_t LCD_COLS = 16;
 
 // Both write exactly LCD_COLS chars (space padded) + NUL; `out` >= 17 bytes.
-void formatLine1(const ReceiverState& s, char* out);
-void formatLine2(const ReceiverState& s, bool linkPage, int lastRssi, char* out);
+// `nowMs` / `timeoutMs` detect the lost signal ("SEM SINAL").
+void formatLine1(const ReceiverState& s, uint32_t nowMs, uint32_t timeoutMs, char* out);
+void formatLine2(const ReceiverState& s, bool linkPage, int lastRssi, uint32_t nowMs,
+                 uint32_t timeoutMs, char* out);
 
 }  // namespace rx
 

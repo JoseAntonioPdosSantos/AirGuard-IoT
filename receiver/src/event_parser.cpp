@@ -124,6 +124,37 @@ ParseResult parseEvent(const char* d, size_t len, Event& e) {
   return ParseResult::Ok;
 }
 
+ParseResult parseHeartbeat(const char* d, size_t len, Heartbeat& h) {
+  h = Heartbeat{};
+  while (len > 0 && (d[len - 1] == ' ' || d[len - 1] == '\r' || d[len - 1] == '\n')) --len;
+  if (len < 2 || d[0] != '{' || d[len - 1] != '}') return ParseResult::NotJson;
+  char type[16];
+  if (!getString(d, len, "type", type, sizeof type)) return ParseResult::MissingField;
+  if (strcmp(type, "HB") != 0) return ParseResult::NotEvent;
+  char lv[8];
+  double seq = 0;
+  if (!getString(d, len, "device", h.device, sizeof h.device) ||
+      !getString(d, len, "levels", lv, sizeof lv) || !getNumber(d, len, "seq", seq))
+    return ParseResult::MissingField;
+  getString(d, len, "dst", h.dst, sizeof h.dst);
+  if (strlen(lv) != static_cast<size_t>(Cat::Count) || seq < 0) return ParseResult::BadValue;
+  for (uint8_t i = 0; i < static_cast<uint8_t>(Cat::Count); ++i) {
+    switch (lv[i]) {
+      case 'N': h.levels[i] = Sev::Normal; break;
+      case 'L': h.levels[i] = Sev::Low; break;
+      case 'M': h.levels[i] = Sev::Medium; break;
+      case 'H': h.levels[i] = Sev::High; break;
+      default: return ParseResult::BadValue;
+    }
+  }
+  h.seq = static_cast<uint32_t>(seq);
+  double v;
+  if (getNumber(d, len, "air_index", v) && v >= 0 && v <= 100) { h.hasAir = true; h.airIndex = static_cast<uint32_t>(v); }
+  if (getNumber(d, len, "temperature", v) && v > -60 && v < 100) { h.hasTemp = true; h.temperature = static_cast<float>(v); }
+  if (getNumber(d, len, "humidity", v) && v >= 0 && v <= 100) { h.hasHum = true; h.humidity = static_cast<float>(v); }
+  return ParseResult::Ok;
+}
+
 size_t buildAck(char* out, size_t cap, const char* gw, const char* node, uint32_t id) {
   const int n = snprintf(out, cap, "{\"type\":\"ACK\",\"device\":\"%s\",\"dst\":\"%s\",\"ack_for\":%lu}",
                          gw, node, static_cast<unsigned long>(id));

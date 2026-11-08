@@ -8,6 +8,7 @@ Segundo dispositivo do AirGuard IoT. Ele recebe pelo LoRa os alertas do sensor d
 | **Verde** | tudo normal. **Pisca** enquanto nenhuma mensagem foi recebida desde que ligou |
 | **Amarelo** | alerta LOW ou MEDIUM em alguma categoria |
 | **Vermelho** | alerta HIGH em alguma categoria |
+| **Amarelo piscando** | **sem sinal**: nenhuma mensagem do sensor há mais de 15 s |
 
 Na partida, os três LEDs acendem juntos por ~1 s (teste das lâmpadas).
 
@@ -53,19 +54,22 @@ Os GPIO da RP2040 **não toleram 5 V**.
 AirGuard RX          (antes da 1ª mensagem)
 Aguardando LoRa
 
+SEM SINAL            nenhuma mensagem há mais de 15 s
+ultimo ha 25s
+
 HIGH: GAS            nível e categoria mais grave (GAS, TEMP, UMIDADE, SISTEMA)
 25.4C 61% 3.10V      temperatura, umidade, gás (tensão do AO do MQ-135)
 RSSI -45dBm #12      alterna a cada 3 s: sinal do último quadro e eventos recebidos
 ```
 
-Os valores mudam **quando chega uma mensagem**. O sensor só transmite eventos: quando um nível
-muda, quando volta ao normal e lembretes enquanto o alerta dura. Ele não envia leituras
-periódicas, então em estado normal os números do LCD são os da última mensagem.
+O sensor manda um **heartbeat a cada 5 s** com o nível de cada categoria e as leituras atuais. Os
+valores do LCD são atualizados a cada 5 s, e o estado dos LEDs é ressincronizado mesmo que um
+evento tenha se perdido. Alertas e recuperações continuam chegando na hora, com ACK.
 
 ## Compilar, testar e gravar
 
 ```bash
-make -C receiver/tests                       # 9 testes no PC (inclui compatibilidade com o código do sensor)
+make -C receiver/tests                       # 12 testes no PC (inclui compatibilidade com o código do sensor)
 cd receiver
 ~/.platformio/penv/bin/pio run -t upload     # grava a RP2040-Zero (copie o .uf2 se o picotool falhar)
 ~/.platformio/penv/bin/pio device monitor    # log 115200: [RX], [ACK], [LORA], [LCD]
@@ -83,8 +87,7 @@ Se o upload não funcionar (picotool sem permissão), segure **BOOT**, aperte **
 
 ## Limitações
 
-- **Sem detecção de perda de sinal:** como o sensor só transmite eventos, o receptor não sabe se o
-  sensor está ligado quando tudo está normal. Para isso, o sensor precisaria de uma mensagem
-  periódica de "estou vivo" (heartbeat), que ainda não existe no protocolo.
+- O heartbeat não tem ACK: o sensor não sabe se o receptor está ligado; só o receptor detecta a
+  perda de sinal. Os alertas, com ACK, continuam indicando `NO ACK` no sensor.
 - Sem buzzer no receptor (não foi pedido).
 - Não testado em hardware ainda: só compilado e testado no PC.

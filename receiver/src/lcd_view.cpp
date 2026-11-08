@@ -17,18 +17,22 @@ void pad(char* out, const char* text) {
 }
 }  // namespace
 
-void formatLine1(const ReceiverState& s, char* out) {
+void formatLine1(const ReceiverState& s, uint32_t now, uint32_t timeoutMs, char* out) {
   char t[24];
   if (!s.anyReceived()) snprintf(t, sizeof t, "AirGuard RX");
+  else if (s.lost(now, timeoutMs)) snprintf(t, sizeof t, "SEM SINAL");
   else if (s.overall() == Sev::Normal) snprintf(t, sizeof t, "NORMAL");
   else snprintf(t, sizeof t, "%s: %s", sevName(s.overall()), catNamePt(s.worst()));
   pad(out, t);
 }
 
-void formatLine2(const ReceiverState& s, bool linkPage, int rssi, char* out) {
+void formatLine2(const ReceiverState& s, bool linkPage, int rssi, uint32_t now, uint32_t timeoutMs,
+                 char* out) {
   char t[32];
   if (!s.anyReceived()) {
     snprintf(t, sizeof t, "Aguardando LoRa");
+  } else if (s.lost(now, timeoutMs)) {
+    snprintf(t, sizeof t, "ultimo ha %lus", static_cast<unsigned long>((now - s.lastMsgMs()) / 1000));
   } else if (linkPage) {
     snprintf(t, sizeof t, "RSSI %ddBm #%lu", rssi, static_cast<unsigned long>(s.events()));
   } else {

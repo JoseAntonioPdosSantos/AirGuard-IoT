@@ -46,3 +46,21 @@ TEST(interop_receiver_ack_is_accepted_by_node) {
   CHECK_EQ(m.id, 1245188u);
   CHECK(proto::addressedToUs(m, "KITCHEN_01"));
 }
+
+TEST(interop_node_heartbeat_is_understood_by_receiver) {
+  Severity lv[CATEGORY_COUNT] = {Severity::High, Severity::Normal, Severity::Low, Severity::Normal};
+  SensorSnapshot s;
+  s.airValid = s.airCalibrated = true;
+  s.airWarmingUp = false;
+  s.airIndex = 62.0f;
+  s.envValid = true;
+  s.temperature = 25.4f;
+  s.humidity = 61.0f;
+  char buf[260];
+  const size_t n = proto::encodeHeartbeat("KITCHEN_01", "GATEWAY_01", 7, lv, s, 30, buf, sizeof buf);
+  rx::Heartbeat h;
+  CHECK(rx::parseHeartbeat(buf, n, h) == rx::ParseResult::Ok);
+  CHECK(h.levels[0] == rx::Sev::High && h.levels[2] == rx::Sev::Low);
+  CHECK(h.hasAir && h.airIndex == 62);
+  CHECK_EQ(h.seq, 7u);
+}

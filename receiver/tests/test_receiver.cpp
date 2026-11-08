@@ -98,18 +98,50 @@ TEST(rx_state_drives_leds) {
 TEST(rx_lcd_lines_fit_16_columns) {
   ReceiverState st;
   char l1[17], l2[17];
-  formatLine1(st, l1);
-  formatLine2(st, false, 0, l2);
+  formatLine1(st, 0, 0, l1);
+  formatLine2(st, false, 0, 0, 0, l2);
   CHECK_STR(l1, "AirGuard RX     ");
   CHECK_STR(l2, "Aguardando LoRa ");
   Event e;
   parse(kAlert, e);
   st.apply(e, 0);
-  formatLine1(st, l1);
-  formatLine2(st, false, -45, l2);
+  formatLine1(st, 0, 0, l1);
+  formatLine2(st, false, -45, 0, 0, l2);
   CHECK_STR(l1, "HIGH: GAS       ");
   CHECK_STR(l2, "32.5C 68% 4.25V ");   // air_index 85 / 20 = 4.25 V
-  formatLine2(st, true, -45, l2);
+  formatLine2(st, true, -45, 0, 0, l2);
   CHECK_STR(l2, "RSSI -45dBm #1  ");
   CHECK_EQ(strlen(l1), 16u);
+}
+
+TEST(rx_heartbeat_resyncs_levels_and_values) {
+  Heartbeat h;
+  const char* f = "{\"v\":1,\"type\":\"HB\",\"device\":\"KITCHEN_01\",\"dst\":\"GATEWAY_01\",\"seq\":12,"
+                  "\"levels\":\"NNLH\",\"air_index\":5,\"temperature\":25.4,\"humidity\":61,\"timestamp\":60}";
+  CHECK(parseHeartbeat(f, strlen(f), h) == ParseResult::Ok);
+  CHECK_EQ(h.seq, 12u);
+  CHECK(h.levels[2] == Sev::Low && h.levels[3] == Sev::High);
+  Event e;
+  CHECK(parseEvent(f, strlen(f), e) == ParseResult::NotEvent);  // HB is not an event
+  ReceiverState st;
+  st.apply(h, 1000);
+  CHECK(st.led(1000, 15000) == Led::Red);   // SYSTEM HIGH from the levels
+  CHECK_NEAR(st.temperature(), 25.4, 1e-3);
+  const char* bad = "{\"type\":\"HB\",\"device\":\"KITCHEN_01\",\"seq\":1,\"levels\":\"NNX\"}";
+  CHECK(parseHeartbeat(bad, strlen(bad), h) == ParseResult::BadValue);
+}
+
+TEST(rx_lost_signal_after_timeout) {
+  ReceiverState st;
+  Heartbeat h;
+  const char* f = "{\"type\":\"HB\",\"device\":\"KITCHEN_01\",\"seq\":1,\"levels\":\"NNNN\"}";
+  CHECK(parseHeartbeat(f, strlen(f), h) == ParseResult::Ok);
+  st.apply(h, 1000);
+  CHECK(st.led(15000, 15000) == Led::Green);
+  CHECK(st.led(16001, 15000) == Led::LostBlink);
+  char l1[17], l2[17];
+  formatLine1(st, 26000, 15000, l1);
+  formatLine2(st, false, 0, 26000, 15000, l2);
+  CHECK_STR(l1, "SEM SINAL       ");
+  CHECK_STR(l2, "ultimo ha 25s   ");
 }

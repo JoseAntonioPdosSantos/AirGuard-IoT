@@ -44,5 +44,7 @@ constexpr bool     AIR_INDEX_IS_VOLTAGE = true;
 constexpr uint32_t LCD_PAGE_MS          = 3000;  // line 2 alternates values / link info
 constexpr uint32_t WAIT_BLINK_MS        = 500;   // green blink before the first message
 constexpr uint32_t WATCHDOG_MS          = 8000;
+// The node sends a heartbeat every 5 s: nothing for 15 s (3 missed) = lost signal.
+constexpr uint32_t LINK_TIMEOUT_MS      = 15000;
 
 }  // namespace rxcfg

@@ -168,3 +168,22 @@ TEST(source_whitelist) {
   CHECK(sourceAllowed("WHATSAPP_GATEWAY"));
   CHECK(!sourceAllowed("EVIL_NODE"));
 }
+
+TEST(protocol_heartbeat_fields_and_size) {
+  Severity lv[CATEGORY_COUNT] = {Severity::Normal, Severity::Normal, Severity::Low, Severity::High};
+  SensorSnapshot s;
+  s.airValid = s.airCalibrated = true;
+  s.airWarmingUp = false;
+  s.airIndex = 5.2f;
+  s.envValid = true;
+  s.temperature = 25.4f;
+  s.humidity = 61.0f;
+  char buf[cfg::LORA_MAX_PAYLOAD + 1];
+  const size_t n = proto::encodeHeartbeat("KITCHEN_01", "GATEWAY_01", 12, lv, s, 60, buf, sizeof buf);
+  CHECK(n > 0 && n < 160);  // short: ~0.4 s on air at SF8
+  CHECK(strstr(buf, "\"type\":\"HB\"") != nullptr);
+  CHECK(strstr(buf, "\"levels\":\"NNLH\"") != nullptr);
+  CHECK(strstr(buf, "\"air_index\":5") != nullptr);
+  CHECK(strstr(buf, "\"temperature\":25.4") != nullptr);
+  CHECK(strstr(buf, "\"seq\":12") != nullptr);
+}

@@ -178,6 +178,10 @@ constexpr uint32_t ACK_TIMEOUT_MS   = 60000;  // spec: retransmit after 60 s
 constexpr uint8_t  ACK_MAX_RETRIES  = 5;      // retransmissions after the first try
 constexpr uint32_t TX_MIN_GAP_MS    = 2000;   // channel courtesy gap between TXs
 constexpr uint8_t  TX_QUEUE_SIZE    = 8;
+// Heartbeat ("estou vivo") to the receiver: levels + live readings, no ACK,
+// lowest priority (an alert always goes first). 0 = disabled.
+// Airtime ~0.4 s at SF8 -> ~8 % of the time on air with 5 s (user request).
+constexpr uint32_t HEARTBEAT_PERIOD_MS = 5000;
 constexpr uint8_t  RX_DEDUP_CACHE   = 16;
 
 // ---------------------------------------------------------------------------

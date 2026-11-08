@@ -176,6 +176,31 @@ size_t encodeAck(const char* device, const char* dst, uint32_t ackFor, char* buf
   return w.finish();
 }
 
+size_t encodeHeartbeat(const char* device, const char* dst, uint32_t seq,
+                       const Severity levels[CATEGORY_COUNT], const SensorSnapshot& s,
+                       uint32_t uptimeS, char* buf, size_t cap) {
+  if (cap > cfg::LORA_MAX_PAYLOAD + 1) cap = cfg::LORA_MAX_PAYLOAD + 1;
+  static const char kLetter[] = {'N', 'L', 'M', 'H'};
+  char lv[CATEGORY_COUNT + 1];
+  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) lv[i] = kLetter[static_cast<uint8_t>(levels[i]) & 3];
+  lv[CATEGORY_COUNT] = '\0';
+  JsonWriter w(buf, cap);
+  w.num("v", VERSION);
+  w.str("type", "HB");
+  w.str("device", device);
+  w.str("dst", dst);
+  w.unum("seq", seq);
+  w.str("levels", lv);
+  if (s.airValid && s.airCalibrated && !s.airWarmingUp)
+    w.unum("air_index", static_cast<uint32_t>(s.airIndex + 0.5f));
+  if (s.envValid) {
+    w.flt("temperature", s.temperature, 1);
+    w.flt("humidity", s.humidity, 0);
+  }
+  w.unum("timestamp", uptimeS);
+  return w.finish();
+}
+
 // ===========================================================================
 // Parser (flat object only)
 // ===========================================================================
