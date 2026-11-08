@@ -106,7 +106,23 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   if (!emaInit_) { ema_ = med; emaInit_ = true; }
   else ema_ += mq135::EMA_ALPHA * (med - ema_);
   s.rsFiltered = ema_;
-  s.vFiltered = voltageFromRs(ema_);
+
+  // Voltage-domain filter (voltage mode): short median + fast EMA on V(AO).
+  vWindow_[vPos_] = s.vSensor;
+  vPos_ = (vPos_ + 1) % mq135::V_MEDIAN_WINDOW;
+  if (vCount_ < mq135::V_MEDIAN_WINDOW) ++vCount_;
+  float vs[mq135::V_MEDIAN_WINDOW];
+  for (uint8_t i = 0; i < vCount_; ++i) vs[i] = vWindow_[i];
+  for (uint8_t i = 1; i < vCount_; ++i) {
+    const float key = vs[i];
+    int j = i - 1;
+    while (j >= 0 && vs[j] > key) { vs[j + 1] = vs[j]; --j; }
+    vs[j + 1] = key;
+  }
+  const float vMed = vs[vCount_ / 2];
+  if (!vEmaInit_) { vEma_ = vMed; vEmaInit_ = true; }
+  else vEma_ += mq135::V_EMA_ALPHA * (vMed - vEma_);
+  s.vFiltered = vEma_;
 
   float comp = 1.0f;
   if (mq135::COMPENSATION_ENABLED && envValid) {

@@ -112,6 +112,11 @@ constexpr float    R0_MAX_PLAUSIBLE  = 2.0e6f;
 // ---- Filtering -------------------------------------------------------------
 constexpr uint8_t MEDIAN_WINDOW = 5;     // odd, <= 9
 constexpr float   EMA_ALPHA     = 0.25f; // 0..1, higher = faster
+// Voltage mode filters the AO VOLTAGE itself (not Rs): averaging Rs and
+// converting back to volts is dominated by the large clean-air Rs and made
+// the alarm lag ~20 s behind the OLED value on the bench.
+constexpr uint8_t V_MEDIAN_WINDOW = 3;   // odd, <= 9 (1 s samples -> 1 s delay)
+constexpr float   V_EMA_ALPHA     = 0.5f;
 
 // ---- Optional temperature/humidity compensation ---------------------------
 // Polynomial fitted by the community (GeorgK MQ135 library) to the

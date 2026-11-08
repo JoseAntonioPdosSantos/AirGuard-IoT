@@ -91,6 +91,10 @@ class AirQualityMonitor {
   uint8_t windowCount_ = 0;
   uint8_t windowPos_ = 0;
   float   ema_ = 0;
+  float   vWindow_[mq135::V_MEDIAN_WINDOW] = {};
+  uint8_t vCount_ = 0, vPos_ = 0;
+  float   vEma_ = 0;
+  bool    vEmaInit_ = false;
   bool    emaInit_ = false;
   uint8_t failCount_ = 0;
   AirSample last_;

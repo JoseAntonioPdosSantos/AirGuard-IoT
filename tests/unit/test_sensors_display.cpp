@@ -316,3 +316,22 @@ TEST(mq135_voltage_from_rs_inverts_rs_formula) {
   const float rs = AirQualityMonitor::computeRs(1.2f);
   CHECK_NEAR(AirQualityMonitor::voltageFromRs(rs), 1.2, 1e-3);
 }
+
+TEST(mq135_voltage_mode_follows_a_gas_step_quickly) {
+  // Bench case: clean 0.45 V, gas brings AO to 3.0 V. The alarm value must
+  // pass 2.5 V within a few seconds (it lagged ~20 s when Rs was averaged).
+  AirQualityMonitor m;
+  m.setVoltageMode(true);
+  m.begin(0, 0, false);
+  m.skipWarmup();
+  auto rawFor = [](float vao) {
+    const float vPin = vao * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
+    return static_cast<uint16_t>(vPin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
+  };
+  uint32_t t = 0;
+  for (int i = 0; i < 10; ++i, t += 1000) m.addSample(rawFor(0.45f), 20, 33, false, t);
+  int secs = 0;
+  while (m.last().vFiltered < 2.5f && secs < 30) { m.addSample(rawFor(3.0f), 20, 33, false, t); t += 1000; ++secs; }
+  CHECK(secs <= 5);
+  CHECK(m.last().index >= 50.0f);
+}
