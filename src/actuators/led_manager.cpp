@@ -19,6 +19,12 @@ void LedManager::write(uint8_t pin, bool on, bool& cur) {
   digitalWrite(pin, on ? HIGH : LOW);
 }
 
+void LedManager::force(bool red, bool yellow) {
+  if (!init_) return;
+  write(pins::LED_RED, red, red_);
+  write(pins::LED_YELLOW, yellow, yellow_);
+}
+
 void LedManager::loop(uint32_t now) {
   if (!init_) return;
   const bool blink2Hz = (now / 250) % 2 == 0;

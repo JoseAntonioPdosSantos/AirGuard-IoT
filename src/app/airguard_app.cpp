@@ -352,8 +352,23 @@ void AirGuardApp::taskOutputs(uint32_t now) {
   const AlertManager& al = *alerts_;
   const Severity overall = al.overall();
   buzzer_.setSeverity(overall, now);
-  buzzer_.loop(now);
   relay_.set(al.relayDemand(), now);
+
+  if (outTest_) {
+    if ((int32_t)(now - outTestUntilMs_) < 0) {
+      // 3 s cycle: yellow ON, red ON, buzzer 3 short beeps (150 ms on / 200 ms off).
+      const uint32_t t = (now - outTestStartMs_) % 3000;
+      const uint32_t b = t - 2000;
+      led_.force(t >= 1000 && t < 2000, t < 1000);
+      buzzer_.force(t >= 2000 && b < 1050 && (b % 350) < 150);
+      return;
+    }
+    outTest_ = false;
+    buzzer_.force(false);
+    LOGI("CON", "output test finished");
+  }
+
+  buzzer_.loop(now);
 
   // Green LED follows the relay in hardware (NC contact); red/yellow here.
   led_.setState(overall, air_.warmingUp(now) && !air_.usable(now));

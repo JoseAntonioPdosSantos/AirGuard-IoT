@@ -19,6 +19,9 @@ class LedManager {
   void begin();
   void setState(Severity overall, bool startingUp) { sev_ = overall; starting_ = startingUp; }
   void loop(uint32_t nowMs);
+  // Bench test: drive both LEDs directly (bypasses the severity logic until
+  // the next loop() call).
+  void force(bool red, bool yellow);
   bool red() const { return red_; }
   bool yellow() const { return yellow_; }
 

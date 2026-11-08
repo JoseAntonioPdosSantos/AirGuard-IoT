@@ -84,6 +84,10 @@ class AirGuardApp {
   LinkState link_[CATEGORY_COUNT] = {};
   uint32_t  rxRejected_ = 0, rxDuplicates_ = 0, textShown_ = 0;
 
+  // bench output test ('out test'): yellow -> red -> buzzer, 1 s each
+  uint32_t outTestStartMs_ = 0, outTestUntilMs_ = 0;
+  bool     outTest_ = false;
+
   // console
   char   cmd_[320] = {};
   size_t cmdLen_ = 0;

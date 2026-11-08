@@ -14,6 +14,9 @@ class BuzzerManager {
   void loop(uint32_t nowMs);
   // Short self-test beep at boot (non-blocking, ~150 ms).
   void chirp(uint32_t nowMs);
+  // Bench test: drive the output directly (bypasses the pattern until the
+  // next loop() call).
+  void force(bool on) { write(on); }
   bool on() const { return on_; }
   Severity severity() const { return sev_; }
 

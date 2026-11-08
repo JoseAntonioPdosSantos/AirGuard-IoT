@@ -20,6 +20,7 @@ const char* HELP =
     "  status | stats | help\r\n"
     "  diag                                 wiring diagnostics (I2C scan, line levels, LoRa baud probe)\r\n"
     "  oled test [s]                        all OLED pixels ON (default 10 s) to find dead rows\r\n"
+    "  out test [s]                         cycle LED yellow -> red -> buzzer (default 9 s)\r\n"
     "  cal start | cal abort | cal status   clean-air R0 calibration (60 s)\r\n"
     "  r0 <ohm>                             set R0 manually (persisted)\r\n"
     "  warmup skip                          skip MQ-135 warm-up (TESTS ONLY)\r\n"
@@ -86,6 +87,21 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
       LOGI("CON", "OLED pixel test: whole screen ON for %lu s", static_cast<unsigned long>(secs));
     } else {
       LOGW("CON", "usage: oled test");
+    }
+    return;
+  }
+  if (!strcmp(cmd, "out")) {
+    if (!strcmp(nextWord(p), "test")) {
+      const long s = atol(nextWord(p));
+      const uint32_t secs = (s > 0 && s <= 600) ? static_cast<uint32_t>(s) : 9;
+      outTest_ = true;
+      outTestStartMs_ = now;
+      outTestUntilMs_ = now + secs * 1000UL;
+      LOGI("CON", "output test %lu s: yellow %s%u, red %s%u, buzzer %s%u (1 s each)",
+           static_cast<unsigned long>(secs), board::PIN_PREFIX, pins::LED_YELLOW,
+           board::PIN_PREFIX, pins::LED_RED, board::PIN_PREFIX, pins::BUZZER);
+    } else {
+      LOGW("CON", "usage: out test [s]");
     }
     return;
   }
