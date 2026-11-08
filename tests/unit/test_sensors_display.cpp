@@ -95,8 +95,8 @@ TEST(mq135_open_circuit_fault) {
   for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i, now += 1000) m.addSample(0, 20, 33, true, now);
   CHECK(m.faulted());
   CHECK(!m.usable(now));
-  m.addSample(adcForRs(30000), 20, 33, true, now);
-  CHECK(!m.faulted());
+  for (int i = 0; i < cfg::MQ135_OK_TO_CLEAR; ++i, now += 200) m.addSample(adcForRs(30000), 20, 33, true, now);
+  CHECK(!m.faulted());  // recovers after MQ135_OK_TO_CLEAR good samples
 }
 
 TEST(mq135_saturated_fault) {
@@ -335,4 +335,19 @@ TEST(mq135_voltage_mode_follows_a_gas_step_quickly) {
   while (m.last().vFiltered < 2.5f && secs < 30) { m.addSample(rawFor(3.0f), 20, 33, false, t); t += 1000; ++secs; }
   CHECK(secs <= 1);  // instant attack: first sample above the threshold
   CHECK(m.last().index >= 50.0f);
+}
+
+TEST(mq135_fault_needs_consecutive_good_samples_to_clear) {
+  // Bench case: AO open -> ADC at the floor, with an occasional noisy sample
+  // just above it. The fault must not flap on each noisy sample.
+  AirQualityMonitor m;
+  m.begin(0, 0, false);
+  m.skipWarmup();
+  uint32_t t = 0;
+  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i, t += 200) m.addSample(0, 20, 33, false, t);
+  CHECK(m.faulted());
+  m.addSample(1500, 20, 33, false, t); t += 200;   // one good-looking sample
+  CHECK(m.faulted());                             // still faulted
+  for (int i = 0; i < cfg::MQ135_OK_TO_CLEAR; ++i, t += 200) m.addSample(1500, 20, 33, false, t);
+  CHECK(!m.faulted());
 }

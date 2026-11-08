@@ -83,6 +83,8 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   const bool rangeOk = rawAdc >= cfg::MQ135_ADC_MIN_VALID && rawAdc <= cfg::MQ135_ADC_MAX_VALID;
   if (simFault_ || !rangeOk || s.rsInstant <= 0) {
     if (failCount_ < 255) ++failCount_;
+    okCount_ = 0;
+    if (failCount_ >= cfg::MQ135_FAIL_LIMIT) faultLatched_ = true;
     s.valid = false;
     s.rsFiltered = last_.rsFiltered;
     s.ratio = last_.ratio;
@@ -96,6 +98,10 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
     return;
   }
   failCount_ = 0;
+  if (faultLatched_) {
+    if (okCount_ < 255) ++okCount_;
+    if (okCount_ >= cfg::MQ135_OK_TO_CLEAR) { faultLatched_ = false; okCount_ = 0; }
+  }
   s.valid = true;
 
   // Median (spike rejection) followed by EMA (noise smoothing).

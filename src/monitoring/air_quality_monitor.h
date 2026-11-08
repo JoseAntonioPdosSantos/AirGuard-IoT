@@ -66,7 +66,7 @@ class AirQualityMonitor {
   // Returns true once after a calibration finished OK (to persist R0).
   bool     takeNewR0(float& r0);
 
-  bool faulted() const { return failCount_ >= cfg::MQ135_FAIL_LIMIT; }
+  bool faulted() const { return faultLatched_; }
   // Usable for classification: valid, warmed up, calibrated, no fault.
   bool usable(uint32_t nowMs) const;
   const AirSample& last() const { return last_; }
@@ -97,6 +97,8 @@ class AirQualityMonitor {
   bool    vEmaInit_ = false;
   bool    emaInit_ = false;
   uint8_t failCount_ = 0;
+  uint8_t okCount_ = 0;
+  bool    faultLatched_ = false;
   AirSample last_;
 
   CalState calState_ = CalState::Idle;
