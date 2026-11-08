@@ -98,7 +98,7 @@ TEST(alert_temperature_and_humidity) {
   CHECK_EQ(drain(m, &e), 1);
   CHECK(e.category == Category::Temperature);
   CHECK(e.severity == Severity::Medium);
-  for (int i = 0; i < 40; ++i, now += 1000) m.updateEnvironment(true, 33, 35, 75, now);
+  for (int i = 0; i < 40; ++i, now += 1000) m.updateEnvironment(true, 33, 35, 82, now);
   CHECK_EQ(drain(m, &e), 1);
   CHECK(e.category == Category::Humidity);
   CHECK(e.severity == Severity::Medium);
