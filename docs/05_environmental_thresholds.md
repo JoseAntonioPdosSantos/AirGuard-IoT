@@ -72,7 +72,7 @@ os limites valem para **este** módulo e precisam ser revistos se ele for trocad
 
 | Categoria | Para subir de nível | Para descer de nível |
 |---|---|---|
-| Qualidade do ar | 5 s | 60 s estável |
+| Qualidade do ar | 5 s | 10 s estável (era 60 s; reduzido a pedido do usuário) |
 | Temperatura | 10 s | 60 s estável |
 | Umidade | 30 s | 120 s estável |
 
