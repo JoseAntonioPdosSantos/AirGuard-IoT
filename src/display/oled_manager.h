@@ -70,6 +70,8 @@ class OledManager {
   uint32_t lastCheckMs_ = 0;
   uint8_t  shadow_[128 * 64 / 8] = {};
   bool     shadowValid_ = false;
+  uint32_t lastFullMs_ = 0;
+  uint32_t nowMs_ = 0;
   bool     wantInvert_ = false, inverted_ = false;
   bool     testActive_ = false;
   uint32_t testUntilMs_ = 0;

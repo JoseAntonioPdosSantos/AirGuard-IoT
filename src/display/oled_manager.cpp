@@ -117,14 +117,17 @@ void OledManager::checkBus(uint32_t now) {
 void OledManager::flush() {
   const uint8_t* buf = g_oled.getBuffer();
   if (!buf) return;
-  if (shadowValid_ && memcmp(buf, shadow_, sizeof shadow_) == 0) return;
-  g_oled.display();
+  const bool due = (uint32_t)(nowMs_ - lastFullMs_) >= cfg::DISPLAY_FULL_REFRESH_MS;
+  if (shadowValid_ && !due && memcmp(buf, shadow_, sizeof shadow_) == 0) return;
+  g_oled.display();  // also re-sends the address window: a corrupted pointer is reset
+  lastFullMs_ = nowMs_;
   memcpy(shadow_, buf, sizeof shadow_);
   shadowValid_ = true;
 }
 
 void OledManager::render(const DisplayModel& m) {
   if (!ok_) return;
+  nowMs_ = m.nowMs;
   g_oled.clearDisplay();
   wantInvert_ = false;
   if (testActive_ && (int32_t)(m.nowMs - testUntilMs_) < 0) {

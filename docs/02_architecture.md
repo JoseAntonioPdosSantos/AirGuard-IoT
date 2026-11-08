@@ -81,7 +81,7 @@ src/
 | 3 | Alertas (classificação, eventos, flags de sistema) | toda iteração | µs |
 | 4 | Rádio (UART, RX, TX, fila, retransmissão) | toda iteração | ~22 ms para escrever um `AT+SEND` de 240 B a 115200 baud |
 | 5 | Saídas (buzzer, relé, LED) | toda iteração | µs |
-| 6 | Display | 250 ms | ~23 ms **só quando o quadro mudou** |
+| 6 | Display | 250 ms | ~23 ms quando o quadro muda, e a cada 2 s de qualquer forma (repara quadro corrompido no I2C) |
 | 7 | Log de status | 10 s | < 1 ms (descarta a linha se a USB estiver cheia) |
 
 O watchdog é de 8 s, e o pior caso de uma iteração fica abaixo de 150 ms.

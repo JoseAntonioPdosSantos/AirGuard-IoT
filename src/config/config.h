@@ -30,6 +30,10 @@ constexpr uint32_t ENV_SAMPLE_PERIOD_MS    = 2500;  // DHT11 >= 1 s, DHT22 >= 2 
 constexpr uint32_t BOOT_SCREEN_MS          = 3000;  // brand/slogan splash
 constexpr uint32_t DISPLAY_REFRESH_MS      = 250;
 constexpr uint32_t DISPLAY_BLINK_MS        = 500;
+// Re-send the whole frame this often even if it did not change, so a frame
+// corrupted on the I2C bus (seen on the bench: garbage in the yellow band,
+// likely 3V3 dips during LoRa TX) is repaired within this time.
+constexpr uint32_t DISPLAY_FULL_REFRESH_MS = 2000;
 constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
 constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;  // RP2040 max is ~8.3 s; ESP32 any
 
