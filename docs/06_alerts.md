@@ -77,7 +77,7 @@ cor só.
 │ Air index: 62 (rel.)     │
 │                          │
 │ +TMP:LOW                 │
-│ Relay:ON  LoRa:WAIT ACK  │
+│ Rly:ON  LoRa:WAIT ACK    │
 └──────────────────────────┘
 ```
 - A tela mostra a severidade (em destaque na faixa amarela), a categoria mais grave, os valores

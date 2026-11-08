@@ -250,7 +250,8 @@ void OledManager::drawAlert(const DisplayModel& m) {
   }
   if (also[0]) textAt(0, BLUE_Y + 30, also);
 
-  snprintf(b, sizeof b, "Relay:%s LoRa:%s", m.relayOn ? "ON " : "OFF", linkText(m.alertLink));
+  // 21 columns max (128 px / 6 px): "Rly:OFF LoRa:WAIT ACK" is exactly 21.
+  snprintf(b, sizeof b, "Rly:%s LoRa:%s", m.relayOn ? "ON " : "OFF", linkText(m.alertLink));
   textAt(0, 56, b);
 
   wantInvert_ = (m.overall == Severity::High && !phase);
