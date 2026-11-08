@@ -98,7 +98,7 @@ O watchdog é de 8 s, e o pior caso de uma iteração fica abaixo de 150 ms.
 
 | Categoria | Subida (escalate) | Recuperação (recover) | Histerese de valor |
 |---|---|---|---|
-| AIR_QUALITY | imediato | 10 s | 5 pontos de índice (modo tensão: 0,3 V) |
+| AIR_QUALITY | imediato | imediato (bancada; configurável) | 5 pontos de índice (modo tensão: 0,3 V) |
 | TEMPERATURE | 10 s | 60 s | 1,0 °C |
 | HUMIDITY | 30 s | 120 s | 3 %UR |
 | SYSTEM | imediato (flags) | imediato | — |

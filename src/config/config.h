@@ -75,7 +75,9 @@ constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range
 // RECOVER : the lower level must be stable this long before de-escalating.
 // ---------------------------------------------------------------------------
 constexpr uint32_t AIR_ESCALATE_MS  = 0;     // INSTANT (user request); was 5 s, then 2 s
-constexpr uint32_t AIR_RECOVER_MS   = 10000;  // was 60 s; 10 s at user request (gas gone -> normal)
+// BENCH TEST values (user request): alarm on AND off immediately. For real use
+// raise AIR_RECOVER_MS (e.g. 60000) so the alarm does not chatter.
+constexpr uint32_t AIR_RECOVER_MS   = 0;     // was 60 s, then 10 s
 constexpr uint32_t TEMP_ESCALATE_MS = 10000;
 constexpr uint32_t TEMP_RECOVER_MS  = 60000;
 constexpr uint32_t HUM_ESCALATE_MS  = 30000;

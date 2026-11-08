@@ -59,9 +59,11 @@ TEST(alert_recovery_event_after_stable_normal) {
   uint32_t now = 0;
   feedAir(m, 70, now, 6000);
   drain(m);
-  feedAir(m, 2, now, cfg::AIR_RECOVER_MS - 1000);
-  CHECK_EQ(drain(m), 0);          // not yet stable for AIR_RECOVER_MS
-  CHECK(m.relayDemand());
+  if (cfg::AIR_RECOVER_MS >= 2000) {  // (bench config uses 0 = immediate)
+    feedAir(m, 2, now, cfg::AIR_RECOVER_MS - 1000);
+    CHECK_EQ(drain(m), 0);          // not yet stable for AIR_RECOVER_MS
+    CHECK(m.relayDemand());
+  }
   feedAir(m, 2, now, 2000);
   AlertEvent e;
   CHECK_EQ(drain(m, &e), 1);

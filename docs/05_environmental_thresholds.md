@@ -71,7 +71,7 @@ os limites valem para **este** módulo e precisam ser revistos se ele for trocad
 
 | Categoria | Para subir de nível | Para descer de nível |
 |---|---|---|
-| Qualidade do ar | **imediato** (era 5 s; leitura a 5 Hz, subida sem filtro) | 10 s estável (era 60 s; reduzido a pedido do usuário) |
+| Qualidade do ar | **imediato** (era 5 s; leitura a 5 Hz, subida sem filtro) | **imediato** na bancada (`AIR_RECOVER_MS = 0`; use ~60 s em uso real) (era 60 s; reduzido a pedido do usuário) |
 | Temperatura | 10 s | 60 s estável |
 | Umidade | 30 s | 120 s estável |
 

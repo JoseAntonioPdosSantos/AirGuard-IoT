@@ -120,8 +120,10 @@ constexpr float   EMA_ALPHA     = 0.25f; // 0..1, higher = faster
 // It filters the AO VOLTAGE itself (not Rs): averaging Rs and
 // converting back to volts is dominated by the large clean-air Rs and made
 // the alarm lag ~20 s behind the OLED value on the bench.
-constexpr uint8_t V_MEDIAN_WINDOW = 3;   // odd, <= 9 (1 s samples -> 1 s delay)
-constexpr float   V_EMA_ALPHA     = 0.5f;
+// BENCH TEST: 1 / 1.0 = no filtering, the alarm follows the reading at once
+// (5 Hz). For real use: e.g. 5 / 0.3 to ignore electrical noise.
+constexpr uint8_t V_MEDIAN_WINDOW = 1;   // odd, <= 9 (samples at 5 Hz)
+constexpr float   V_EMA_ALPHA     = 1.0f;  // 0..1, 1 = no smoothing
 
 // ---- Optional temperature/humidity compensation ---------------------------
 // Polynomial fitted by the community (GeorgK MQ135 library) to the
