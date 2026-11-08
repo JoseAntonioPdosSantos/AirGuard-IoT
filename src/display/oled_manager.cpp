@@ -200,10 +200,12 @@ void OledManager::drawMain(const DisplayModel& m) {
   else snprintf(b, sizeof b, "Air Quality: %s", severityName(m.airSeverity));
   textAt(0, BLUE_Y + 19, b);
 
-  if (m.airUsable) {
-    snprintf(b, sizeof b, "Air index: %.0f", m.airIndex);
-    textAt(0, BLUE_Y + 28, b);
-  }
+  // Live MQ-135 reading (AO voltage, as a multimeter would show on the module).
+  // Shown in every state so wiring problems are visible without the console.
+  if (!m.airAoValid) snprintf(b, sizeof b, "MQ135 AO: --- V");
+  else if (m.airUsable) snprintf(b, sizeof b, "AO %.2fV  index %.0f", m.airAoVolts, m.airIndex);
+  else snprintf(b, sizeof b, "MQ135 AO: %.2f V", m.airAoVolts);
+  textAt(0, BLUE_Y + 28, b);
   drawFooter(m);
 }
 
@@ -222,28 +224,25 @@ void OledManager::drawAlert(const DisplayModel& m) {
   switch (m.worst) {
     case Category::AirQuality:
       snprintf(b, sizeof b, "Air index: %.0f (rel.)", m.airIndex);
-      textAt(0, BLUE_Y + 11, b);
       break;
     case Category::Temperature:
-      if (m.envValid) {
-        snprintf(b, sizeof b, "Temp: %.1f C", m.temperature);
-        textAt(0, BLUE_Y + 11, b);
-        snprintf(b, sizeof b, "Feels: %.1f C", m.heatIndex);
-        textAt(0, BLUE_Y + 20, b);
-      }
+      if (m.envValid) snprintf(b, sizeof b, "Temp %.1fC Feels %.1f", m.temperature, m.heatIndex);
+      else snprintf(b, sizeof b, "Temp: --.-");
       break;
     case Category::Humidity:
-      if (m.envValid) {
-        snprintf(b, sizeof b, "Humidity: %.0f%%", m.humidity);
-        textAt(0, BLUE_Y + 11, b);
-        snprintf(b, sizeof b, "Temp: %.1f C", m.temperature);
-        textAt(0, BLUE_Y + 20, b);
-      }
+      if (m.envValid) snprintf(b, sizeof b, "Hum %.0f%%  Temp %.1fC", m.humidity, m.temperature);
+      else snprintf(b, sizeof b, "Hum: --");
       break;
     default:
-      textAt(0, BLUE_Y + 11, systemText(m.systemFlags));
+      snprintf(b, sizeof b, "%s", systemText(m.systemFlags));
       break;
   }
+  textAt(0, BLUE_Y + 11, b);
+
+  // Live MQ-135 reading on every alert screen too.
+  if (m.airAoValid) snprintf(b, sizeof b, "MQ135 AO: %.2f V", m.airAoVolts);
+  else snprintf(b, sizeof b, "MQ135 AO: --- V");
+  textAt(0, BLUE_Y + 20, b);
 
   // Other active categories (compact).
   char also[28] = "";

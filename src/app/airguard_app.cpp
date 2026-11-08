@@ -387,6 +387,8 @@ void AirGuardApp::taskDisplay(uint32_t now) {
   d.calPercent = static_cast<uint8_t>(air_.calProgress(now) * 100);
   d.simulation = air_.simulating() || env_.simulating();
   d.airIndex = air_.last().index;
+  d.airAoVolts = air_.last().vSensor;
+  d.airAoValid = air_.last().raw > 0;
   d.airSeverity = al.category(Category::AirQuality);
   d.worst = al.worstCategory();
   for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) d.perCategory[i] = al.category(static_cast<Category>(i));
