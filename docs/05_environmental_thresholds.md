@@ -47,6 +47,27 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 | ≥ 50 | HIGH | **valor inicial**, a calibrar |
 | histerese | 5 pontos | |
 
+### Qualidade do ar pela tensão do AO (modo ativo no ESP32)
+
+Com `cfg::AIR_ALERT_BY_VOLTAGE = true` (padrão atual), o alarme usa a **tensão na saída AO do
+MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O índice passa a ser
+`air_index = 100 × V(AO) / 5 V`, ou seja, a tensão do AO em porcentagem de 5 V.
+
+| Tensão no AO | `air_index` | Severidade |
+|---|---|---|
+| < 1,5 V | < 30 | NORMAL |
+| ≥ 1,5 V | ≥ 30 | LOW |
+| ≥ 2,5 V | ≥ 50 | MEDIUM |
+| ≥ 3,5 V | ≥ 70 | HIGH |
+| histerese | 0,3 V (6 pontos) | |
+
+Valores **iniciais**, definidos pela bancada: ar limpo ~0,5 V; isqueiro perto do sensor leva o AO a quase
+5 V. Ajuste `AO_LOW_V`, `AO_MEDIUM_V` e `AO_HIGH_V` em `thresholds.h` após observar a cozinha real.
+A tensão do AO depende do sensor, do resistor de carga do módulo e da temperatura/umidade; por isso
+os limites valem para **este** módulo e precisam ser revistos se ele for trocado. O aquecimento de
+5 min continua obrigatório: o sensor frio dá tensões altas. Com `false`, volta o modo por Rs/R0
+(tabela acima), que exige `cal start`.
+
 ### Persistência temporal (histerese no tempo)
 
 | Categoria | Para subir de nível | Para descer de nível |

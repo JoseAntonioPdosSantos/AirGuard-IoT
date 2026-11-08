@@ -48,12 +48,19 @@ constexpr uint32_t MQ135_WARMUP_MS = 5UL * 60UL * 1000UL;
 // ---------------------------------------------------------------------------
 constexpr uint8_t  ENV_FAIL_LIMIT     = 3;   // consecutive bad reads -> fault (~7.5 s)
 constexpr uint8_t  MQ135_FAIL_LIMIT   = 5;   // consecutive bad samples -> fault (~5 s)
+// MQ-135 alert basis:
+//   true : AO voltage (0..5 V) against thr::AIR_VOLTAGE. No calibration needed.
+//   false: Rs/R0 relative to the calibrated clean-air R0 (thr::AIR_QUALITY).
+constexpr bool AIR_ALERT_BY_VOLTAGE = true;
+
 #if defined(ARDUINO_ARCH_ESP32)
 // ESP32 ADC (11 dB attenuation) cannot read below ~0.14 V (it returns that
 // floor for 0 V, measured on the bench: 176 counts), and saturates at ~3.1 V.
 // A pin at the floor is indistinguishable from "AO disconnected / shorted".
 constexpr uint16_t MQ135_ADC_MIN_VALID = 200;   // ~0.16 V at the pin
-constexpr uint16_t MQ135_ADC_MAX_VALID = 3800;  // ~3.06 V at the pin
+// No upper fault limit: with the 10k/20k divider the pin saturates at ~3.1 V
+// (AO ~4.7 V) only under STRONG gas, which must read as high, not as a fault.
+constexpr uint16_t MQ135_ADC_MAX_VALID = 4095;
 #else
 constexpr uint16_t MQ135_ADC_MIN_VALID = 8;     // below: open circuit / disconnected
 constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range

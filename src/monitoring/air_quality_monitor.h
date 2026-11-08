@@ -17,6 +17,7 @@ struct AirSample {
   uint16_t raw = 0;
   float    vAdc = 0;
   float    vSensor = 0;
+  float    vFiltered = 0;   // AO voltage from the filtered Rs (median + EMA)
   float    rsInstant = 0;
   float    rsFiltered = 0;
   float    ratio = 0;
@@ -38,6 +39,10 @@ class AirQualityMonitor {
   static float compensationFactor(float tempC, float rh);
 
   void begin(uint32_t nowMs, float r0, bool r0Valid);
+  // Voltage mode: index = 100 * filtered AO voltage / Vc; no R0 required.
+  void setVoltageMode(bool on) { voltageMode_ = on; }
+  bool voltageMode() const { return voltageMode_; }
+  static float voltageFromRs(float rs);
 
   // Process one oversampled ADC value. env* used only for compensation.
   void addSample(uint16_t rawAdc, float tempC, float rh, bool envValid, uint32_t nowMs);
@@ -77,6 +82,7 @@ class AirQualityMonitor {
   void  finishCalibration(uint32_t nowMs);
 
   uint32_t bootMs_ = 0;
+  bool     voltageMode_ = false;
   bool     warmupSkipped_ = false;
   float    r0_ = 0;
   bool     r0Valid_ = false;

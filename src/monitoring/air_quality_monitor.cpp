@@ -18,6 +18,11 @@ float AirQualityMonitor::computeRs(float vSensor) {
   return mq135::LOAD_RESISTANCE * (mq135::CIRCUIT_VOLTAGE - vSensor) / vSensor;
 }
 
+float AirQualityMonitor::voltageFromRs(float rs) {
+  if (isnan(rs) || rs < 0) return 0;
+  return mq135::CIRCUIT_VOLTAGE * mq135::LOAD_RESISTANCE / (rs + mq135::LOAD_RESISTANCE);
+}
+
 float AirQualityMonitor::indexFromRatio(float ratio) {
   if (isnan(ratio) || ratio < 0) return 0;
   return clampf(100.0f * (1.0f - ratio), 0.0f, 100.0f);
@@ -51,7 +56,7 @@ uint32_t AirQualityMonitor::warmupRemainingMs(uint32_t now) const {
 
 bool AirQualityMonitor::usable(uint32_t now) const {
   if (simIndexOn_ && !simFault_) return true;
-  return last_.valid && !faulted() && !warmingUp(now) && r0Valid_;
+  return last_.valid && !faulted() && !warmingUp(now) && (r0Valid_ || voltageMode_);
 }
 
 float AirQualityMonitor::medianOfWindow() const {
@@ -101,6 +106,7 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   if (!emaInit_) { ema_ = med; emaInit_ = true; }
   else ema_ += mq135::EMA_ALPHA * (med - ema_);
   s.rsFiltered = ema_;
+  s.vFiltered = voltageFromRs(ema_);
 
   float comp = 1.0f;
   if (mq135::COMPENSATION_ENABLED && envValid) {
@@ -116,10 +122,9 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
     if ((uint32_t)(now - calStartMs_) >= mq135::CAL_DURATION_MS) finishCalibration(now);
   }
 
-  if (r0Valid_) {
-    s.ratio = (s.rsFiltered / comp) / r0_;
-    s.index = indexFromRatio(s.ratio);
-  }
+  if (r0Valid_) s.ratio = (s.rsFiltered / comp) / r0_;
+  if (voltageMode_) s.index = clampf(100.0f * s.vFiltered / mq135::CIRCUIT_VOLTAGE, 0.0f, 100.0f);
+  else if (r0Valid_) s.index = indexFromRatio(s.ratio);
   if (simIndexOn_) { s.index = simIndex_; s.simulated = true; }
   if (simAdcOn_) s.simulated = true;
   last_ = s;

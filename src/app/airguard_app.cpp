@@ -60,7 +60,8 @@ void AirGuardApp::setup() {
   // 2) Persistent state -> unique event ids across reboots.
   store::begin();
   const uint16_t boot = store::incrementBoot();
-  alerts_ = new (g_alertStorage) AlertManager(boot);
+  alerts_ = new (g_alertStorage)
+      AlertManager(boot, cfg::AIR_ALERT_BY_VOLTAGE ? thr::AIR_VOLTAGE : thr::AIR_QUALITY);
   const PersistedState& st = store::state();
   LOGI("BOOT", "boot #%u, R0 %s (%.0f ohm), HIGH mask 0x%02X", boot,
        st.r0Valid ? "stored" : "NOT calibrated", st.r0, st.highMask);
@@ -71,7 +72,11 @@ void AirGuardApp::setup() {
   oled_.render(DisplayModel{});  // boot screen
 
   mq_.begin();
+  air_.setVoltageMode(cfg::AIR_ALERT_BY_VOLTAGE);
   air_.begin(bootMs_, st.r0, st.r0Valid != 0);
+  if (cfg::AIR_ALERT_BY_VOLTAGE)
+    LOGI("BOOT", "MQ-135 alerts by AO voltage: LOW %.1f V, MEDIUM %.1f V, HIGH %.1f V",
+         thr::AO_LOW_V, thr::AO_MEDIUM_V, thr::AO_HIGH_V);
   envSensor_.begin();
   lora_.begin();  // RYLR998 init runs in the background (reset + AT configuration)
 
@@ -165,7 +170,8 @@ uint16_t AirGuardApp::computeSystemFlags(uint32_t now) const {
   uint16_t f = 0;
   if (env_.faulted()) f |= SYS_ENV_SENSOR_FAULT;
   if (air_.faulted()) f |= SYS_AIR_SENSOR_FAULT;
-  if (!air_.calibrated() && !air_.warmingUp(now) && !air_.usable(now)) f |= SYS_MQ135_UNCAL;
+  if (!cfg::AIR_ALERT_BY_VOLTAGE && !air_.calibrated() && !air_.warmingUp(now) && !air_.usable(now))
+    f |= SYS_MQ135_UNCAL;
   if (lora_.state() == LoraManager::State::Fault) f |= SYS_LORA_RADIO_FAULT;
   if (!ack_.linkHealthy()) f |= SYS_LORA_NO_ACK;
   if (!oled_.ok()) f |= SYS_DISPLAY_FAULT;

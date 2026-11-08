@@ -5,6 +5,7 @@
 #include "../../src/display/screen_logic.h"
 #include "../../src/monitoring/air_quality_monitor.h"
 #include "../../src/monitoring/environment_monitor.h"
+#include "../../src/monitoring/severity_logic.h"
 #include "../../src/utils/text_utils.h"
 #include "test_framework.h"
 
@@ -283,4 +284,34 @@ TEST(screen_priority) {
   CHECK(selectScreen(false, Severity::Low, false) == Screen::Alert);
   CHECK(selectScreen(false, Severity::Normal, false) == Screen::Main);
   CHECK(selectScreen(false, Severity::Medium, true) == Screen::Message);
+}
+
+// ---- voltage alert mode (cfg::AIR_ALERT_BY_VOLTAGE) -------------------------
+TEST(mq135_voltage_mode_index_is_ao_percent) {
+  AirQualityMonitor m;
+  m.setVoltageMode(true);
+  m.begin(0, 0, false);  // NOT calibrated
+  m.skipWarmup();
+  // AO = 2.5 V -> pin = 2.5 * Rb / (Rt + Rb)
+  const float vPin = 2.5f * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
+  const uint16_t raw = static_cast<uint16_t>(vPin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
+  for (int i = 0; i < 20; ++i) m.addSample(raw, 20, 33, false, 1000u * i);
+  CHECK(m.usable(20000));  // usable without R0
+  CHECK_NEAR(m.last().vFiltered, 2.5, 0.01);
+  CHECK_NEAR(m.last().index, 50.0, 0.3);
+}
+
+TEST(mq135_voltage_thresholds_map_volts) {
+  HysteresisClassifier c(thr::AIR_VOLTAGE);
+  CHECK(c.update(100 * 0.5f / 5) == Severity::Normal);   // clean air ~0.5 V
+  CHECK(c.update(100 * 1.6f / 5) == Severity::Low);
+  CHECK(c.update(100 * 2.6f / 5) == Severity::Medium);
+  CHECK(c.update(100 * 3.6f / 5) == Severity::High);
+  CHECK(c.update(100 * 3.3f / 5) == Severity::High);     // within 0.3 V hysteresis
+  CHECK(c.update(100 * 3.1f / 5) == Severity::Medium);
+}
+
+TEST(mq135_voltage_from_rs_inverts_rs_formula) {
+  const float rs = AirQualityMonitor::computeRs(1.2f);
+  CHECK_NEAR(AirQualityMonitor::voltageFromRs(rs), 1.2, 1e-3);
 }

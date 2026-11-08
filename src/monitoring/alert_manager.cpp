@@ -2,9 +2,9 @@
 
 #include "../config/thresholds.h"
 
-AlertManager::AlertManager(uint16_t bootCount)
+AlertManager::AlertManager(uint16_t bootCount, const ThresholdSet& airThresholds)
     : ids_(bootCount),
-      airCls_(thr::AIR_QUALITY),
+      airCls_(airThresholds),
       tempCls_(thr::TEMPERATURE),
       humCls_(thr::HUMIDITY),
       airTrk_(cfg::AIR_ESCALATE_MS, cfg::AIR_RECOVER_MS),

@@ -30,7 +30,7 @@ class EventIdGenerator {
 
 class AlertManager {
  public:
-  explicit AlertManager(uint16_t bootCount);
+  explicit AlertManager(uint16_t bootCount, const ThresholdSet& airThresholds = thr::AIR_QUALITY);
 
   // usable=false -> the category keeps its last confirmed level (a bad
   // reading is never interpreted as "normal").
