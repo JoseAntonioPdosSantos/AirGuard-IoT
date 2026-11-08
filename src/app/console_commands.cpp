@@ -19,6 +19,7 @@ const char* HELP =
     "AirGuard IoT console\r\n"
     "  status | stats | help\r\n"
     "  diag                                 wiring diagnostics (I2C scan, line levels, LoRa baud probe)\r\n"
+    "  oled test [s]                        all OLED pixels ON (default 10 s) to find dead rows\r\n"
     "  cal start | cal abort | cal status   clean-air R0 calibration (60 s)\r\n"
     "  r0 <ohm>                             set R0 manually (persisted)\r\n"
     "  warmup skip                          skip MQ-135 warm-up (TESTS ONLY)\r\n"
@@ -77,6 +78,17 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
   if (!strcmp(cmd, "status")) { printStatus(now); return; }
   if (!strcmp(cmd, "stats")) { printStats(); return; }
   if (!strcmp(cmd, "diag")) { runDiagnostics(now); return; }
+  if (!strcmp(cmd, "oled")) {
+    if (!strcmp(nextWord(p), "test")) {
+      const long s = atol(nextWord(p));
+      const uint32_t secs = (s > 0 && s <= 600) ? static_cast<uint32_t>(s) : 10;
+      oled_.startPixelTest(now, secs * 1000UL);
+      LOGI("CON", "OLED pixel test: whole screen ON for %lu s", static_cast<unsigned long>(secs));
+    } else {
+      LOGW("CON", "usage: oled test");
+    }
+    return;
+  }
   if (!strcmp(cmd, "reboot")) {
     LOGW("CON", "rebooting");
     delay(50);  // let the log line leave

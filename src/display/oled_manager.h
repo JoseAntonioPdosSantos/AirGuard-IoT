@@ -52,6 +52,8 @@ class OledManager {
   bool ok() const { return ok_; }
   void retry(uint32_t nowMs);           // re-probe after a fault (every 30 s)
   void checkBus(uint32_t nowMs);        // periodic I2C presence check
+  // Bench test: every pixel ON for `ms` (dead rows/columns show as dark lines).
+  void startPixelTest(uint32_t nowMs, uint32_t ms) { testUntilMs_ = nowMs + ms; testActive_ = true; }
 
  private:
   void drawBoot(const DisplayModel& m);
@@ -67,4 +69,6 @@ class OledManager {
   uint8_t  shadow_[128 * 64 / 8] = {};
   bool     shadowValid_ = false;
   bool     wantInvert_ = false, inverted_ = false;
+  bool     testActive_ = false;
+  uint32_t testUntilMs_ = 0;
 };

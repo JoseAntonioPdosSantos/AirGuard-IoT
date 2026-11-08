@@ -127,6 +127,13 @@ void OledManager::render(const DisplayModel& m) {
   if (!ok_) return;
   g_oled.clearDisplay();
   wantInvert_ = false;
+  if (testActive_ && (int32_t)(m.nowMs - testUntilMs_) < 0) {
+    g_oled.fillRect(0, 0, 128, 64, SSD1306_WHITE);
+    flush();
+    if (inverted_) { g_oled.invertDisplay(false); inverted_ = false; }
+    return;
+  }
+  testActive_ = false;
   switch (m.screen) {
     case Screen::Boot: drawBoot(m); break;
     case Screen::Main: drawMain(m); break;
