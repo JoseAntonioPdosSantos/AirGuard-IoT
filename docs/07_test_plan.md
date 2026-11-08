@@ -2,7 +2,7 @@
 
 O plano tem dois níveis:
 
-1. **Testes unitários automatizados** no PC, sem hardware: `make -C tests`. São 84 testes
+1. **Testes unitários automatizados** no PC, sem hardware: `make -C tests`. São 88 testes
    compilados com AddressSanitizer e UndefinedBehaviorSanitizer.
 2. **Testes experimentais** na placa, com os 23 cenários da especificação. Eles usam o **console
    serial** (`pio device monitor`, 115200) para simular sensores e rádio sem depender de gases

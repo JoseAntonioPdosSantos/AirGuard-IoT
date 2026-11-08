@@ -16,7 +16,7 @@ toolchain ARM e as bibliotecas do `lib_deps` (algumas centenas de MB).
 ```bash
 cd AirGuard-IoT
 make -C tests          # compila com ASan/UBSan e executa
-# 84 tests, 357 checks, 0 failed checks, 0 failed tests
+# 88 tests, 367 checks, 0 failed checks, 0 failed tests
 ```
 
 ## 3. Compilação do firmware

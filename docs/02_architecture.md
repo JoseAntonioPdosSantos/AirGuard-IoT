@@ -157,7 +157,7 @@ recuperação, incluindo o aquecimento do MQ-135.
 | **Arduino-Pico (Earle Philhower)** | core RP2040 | Suporte completo ao RP2040: EEPROM emulada, `rp2040.wdt_*`, `hwrand32`, mux de pinos SPI/I2C. É mantido ativamente. O core Mbed oficial não tem watchdog nem EEPROM com essa API. |
 | *(nenhuma para o LoRa)* | RYLR998 | O módulo é controlado por comandos AT simples. Um driver próprio, não bloqueante e com o parser testado no PC (`rylr998_codec`), evita depender de bibliotecas de terceiros que costumam usar `delay()` e esperar respostas de forma bloqueante. |
 | **Adafruit SSD1306 + GFX** | OLED | Padrão de mercado, fonte 5×7, buffer acessível (necessário para enviar só quando muda). |
-| **DHT sensor library** (Adafruit) | DHT11 / DHT22 | Lida com a temporização do protocolo de um fio no RP2040. |
+| *(nenhuma para o DHT)* | DHT11 / DHT22 | Driver próprio (`temperature_sensor.cpp` + `dht_codec`, testado no PC). A biblioteca da Adafruit foi removida porque, com a linha de dados instável, deixa as interrupções desligadas por segundos; no ESP32 isso dispara o watchdog de interrupção (reboot em loop observado na bancada). Cada borda agora tem timeout de 100 µs: no máximo ~8,5 ms sem interrupções. |
 | **Adafruit AHTX0** | AHT20 (opcional) | Driver oficial do fabricante do módulo mais comum. |
 
 Não é usada nenhuma biblioteca JSON: o parser próprio é limitado, não aloca memória, rejeita

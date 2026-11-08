@@ -62,7 +62,7 @@ são tratadas como **saturação** (`MQ135_ADC_MAX_VALID = 3800` no ESP32).
 | `diag`, teste TX/RX invertidos | UART por PIO | a própria Serial2 com os pinos trocados |
 | Gravação | arrastar `.uf2` / BOOTSEL | `pio run -t upload` (USB serial, automático) |
 
-A lógica de alertas, o protocolo, a fila de ACK e as telas **não mudaram** (mesmos 84 testes).
+A lógica de alertas, o protocolo, a fila de ACK e as telas **não mudaram** (mesmos 88 testes).
 
 ## 4. Compilar e gravar
 

@@ -88,6 +88,19 @@ inline uint32_t hwRandom() {
 #endif
 }
 
+// ---- short interrupt-free section (bit-banged DHTxx timing, <= ~9 ms) -----
+#if defined(ARDUINO_ARCH_ESP32)
+inline portMUX_TYPE& criticalMux() {
+  static portMUX_TYPE m = portMUX_INITIALIZER_UNLOCKED;
+  return m;
+}
+inline void criticalBegin() { portENTER_CRITICAL(&criticalMux()); }
+inline void criticalEnd() { portEXIT_CRITICAL(&criticalMux()); }
+#else
+inline void criticalBegin() { noInterrupts(); }
+inline void criticalEnd() { interrupts(); }
+#endif
+
 // ---- I2C (OLED, optional AHT20) ------------------------------------------
 inline void i2cBegin(uint32_t clockHz) {
 #if defined(ARDUINO_ARCH_ESP32)

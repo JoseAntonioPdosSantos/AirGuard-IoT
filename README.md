@@ -24,7 +24,7 @@ dispositivo funciona continuamente, **sem Wi-Fi nem internet**:
 ## Início rápido
 
 ```bash
-make -C tests                 # 84 testes unitários no PC (ASan/UBSan)
+make -C tests                 # 88 testes unitários no PC (ASan/UBSan)
 pio run                       # compilar ESP32 + DHT11 | -e esp32dev_dht22 / esp32dev_aht20 / rp2040zero
 pio run -t upload             # gravar
 pio device monitor            # console 115200 → digite "help"
@@ -70,7 +70,7 @@ AirGuard-IoT/
 
 | Item | Situação |
 |---|---|
-| Lógica central (classificação, alertas, protocolo, ACK, rádio AT, telas, texto) | ✅ implementada, 84 testes unitários passando |
+| Lógica central (classificação, alertas, protocolo, ACK, rádio AT, telas, texto) | ✅ implementada, 88 testes unitários passando |
 | Drivers (LoRa, OLED, buzzer, relé, LED, sensores, flash) e integração | ✅ implementados |
 | Compilação ESP32 DevKit (`pio run`) | ✅ DHT11 e AHT20 compilam sem avisos (RAM 8,8 %, flash 27,3 %); **não testado em placa física** |
 | Compilação RP2040-Zero (`pio run -e rp2040zero`) | ✅ compila; firmware rodou na placa (MQ-135 lido; demais módulos sem contato: pinos sem solda) |
