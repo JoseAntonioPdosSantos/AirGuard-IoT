@@ -28,7 +28,8 @@ constexpr uint32_t MQ135_SAMPLE_PERIOD_MS  = 200;   // 5 Hz: gas alarm reacts wi
 constexpr uint8_t  MQ135_OVERSAMPLE        = 16;    // ADC reads averaged per sample
 constexpr uint32_t ENV_SAMPLE_PERIOD_MS    = 2500;  // DHT11 >= 1 s, DHT22 >= 2 s between reads
 constexpr uint32_t BOOT_SCREEN_MS          = 3000;  // brand/slogan splash
-constexpr uint32_t DISPLAY_REFRESH_MS      = 250;
+constexpr uint32_t DISPLAY_REFRESH_MS      = 50;   // 20 fps for the scrolling line
+constexpr uint32_t DISPLAY_TICKER_PX_PER_S = 40;   // scrolling speed
 constexpr uint32_t DISPLAY_BLINK_MS        = 500;
 // Re-send the whole frame this often even if it did not change, so a frame
 // corrupted on the I2C bus (seen on the bench: garbage in the yellow band,

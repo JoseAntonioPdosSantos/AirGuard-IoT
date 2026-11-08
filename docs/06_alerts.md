@@ -48,39 +48,36 @@ cor só.
 └──────────────────────────┘
 ```
 
-**Principal:**
+**Principal** (tudo normal):
 ```
 ┌ amarelo ─────────────────┐
-│ KITCHEN MONITOR      SIM │
-│ Status: MONITORING       │
+│ AirGuard  (2×)       IoT │  ← "SIM" no lugar de "IoT" com simulação ativa
 ├ azul ────────────────────┤
-│ Temp: 26.5 C             │
-│ Humidity: 55%            │
-│ Air Quality: NORMAL      │
-│ AO 1.02V  index 7        │
+│ ◄ Temp 25.4 C | Hum 61 % | Gas 0.23 V   (2×, rolando)
 │                          │
-│ LoRa: OK                 │
+│ AO 0.23V  index 5        │  ← linha mantida
+│ LoRa: OK                 │  ← linha mantida
 └──────────────────────────┘
 ```
-- A linha "Air" mostra `WARMUP mm:ss`, `NO CAL` (sem calibração) ou `FAIL` (falha do sensor)
-  quando for o caso.
-- A linha `AO` mostra a tensão na saída AO do MQ-135 (0–5 V, o divisor já descontado), em todos os estados, inclusive no aquecimento e na falha, para conferir a ligação sem o console. Com o sensor calibrado, mostra também o índice relativo.
-- "Status" pode ser `MONITORING`, `WARMING UP`, `CAL nn%` ou `SENSOR FAULT`.
-- `SIM` aparece quando há uma simulação ativa.
+- A faixa do meio rola continuamente da direita para a esquerda, em fonte 2× (40 px/s,
+  `DISPLAY_TICKER_PX_PER_S`). Com `SENSOR FAULT`, `WARMING UP` ou `CAL nn%`, esse estado aparece no
+  início da faixa.
+- A linha `AO` mostra a tensão na saída AO do MQ-135 (0–5 V, o divisor já descontado), em todos os
+  estados, para conferir a ligação sem o console.
 - Leituras inválidas aparecem como `--.-`, nunca como um valor antigo apresentado como atual.
 
 **Alerta:**
 ```
 ┌ amarelo ─────────────────┐
-│          HIGH            │  ← fonte 2× (16 px, ocupa toda a faixa)
+│          HIGH            │  ← fonte 2×; MEDIUM pisca o texto, HIGH pisca a tela inteira
 ├ azul ────────────────────┤
-│ ALERT AIR_QUALITY        │
-│ Air index: 62 (rel.)     │
-│ MQ135 AO: 3.41 V         │
-│ +TMP:LOW                 │
-│ Rly:ON  LoRa:WAIT ACK    │
+│ ◄ ALERT AIR_QUALITY | Temp 25.4 C | Hum 61 % | Gas 3.10 V   (2×, rolando)
+│                          │
+│ +HUM:LOW                 │  ← linha mantida (outras categorias ativas)
+│ Rly:ON  LoRa:WAIT ACK    │  ← linha mantida
 └──────────────────────────┘
 ```
+Ao voltar à normalidade, a faixa amarela volta a mostrar o nome do aplicativo.
 - A tela mostra a severidade (em destaque na faixa amarela), a categoria mais grave, os valores
   relacionados (índice; temperatura e sensação térmica; umidade e temperatura; ou o problema de
   sistema), as demais categorias ativas e o estado do relé e da entrega LoRa (`SENDING`,

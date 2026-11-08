@@ -175,36 +175,52 @@ void OledManager::drawFooter(const DisplayModel& m) {
   textAt(0, 56, b);
 }
 
+// Yellow band, shared by the main and alert screens: the app name in normal
+// operation, the alert level (as before) while an alert is active.
+void OledManager::drawHeader(const DisplayModel& m) {
+  if (m.overall == Severity::Normal) {
+    textAt(5, 0, "AirGuard", 2);                        // 8 x 12 px = 96 px
+    textAt(105, 8, m.simulation ? "SIM" : "IoT");       // bottom-aligned, small
+    return;
+  }
+  // Severity in the 2x font (exactly 16 px tall). MEDIUM blinks the text,
+  // HIGH blinks the whole screen (inversion, set in drawAlert).
+  if (m.overall != Severity::Medium || blinkPhase(m.nowMs)) centered(0, severityName(m.overall), 2);
+}
+
+// Blue band, rows 20..35: measurements scrolling right-to-left in the 2x font
+// (easier to read than the 6x8 font; each pixel is 2x2, so one weak panel row
+// does not deform the letters). Position is derived from the clock, so the
+// speed is constant whatever the loop timing.
+void OledManager::drawTicker(const DisplayModel& m, const char* prefix) {
+  char t[128];
+  size_t n = 0;
+  if (prefix && prefix[0]) n += snprintf(t + n, sizeof t - n, "%s  |  ", prefix);
+  if (m.envValid) n += snprintf(t + n, sizeof t - n, "Temp %.1f C  |  Hum %.0f %%", m.temperature, m.humidity);
+  else n += snprintf(t + n, sizeof t - n, "Temp --.- C  |  Hum -- %%");
+  if (n < sizeof t) {
+    if (m.airFault) snprintf(t + n, sizeof t - n, "  |  Gas FAIL");
+    else if (!m.airAoValid) snprintf(t + n, sizeof t - n, "  |  Gas --- V");
+    else snprintf(t + n, sizeof t - n, "  |  Gas %.2f V", m.airAoVolts);
+  }
+  const int32_t w = static_cast<int32_t>(strlen(t)) * 12;  // 2x font: 12 px per char
+  const int32_t span = w + 128;
+  const int32_t shift = static_cast<int32_t>((static_cast<uint64_t>(m.nowMs) *
+                                              cfg::DISPLAY_TICKER_PX_PER_S / 1000) % span);
+  textAt(static_cast<int16_t>(128 - shift), BLUE_Y + 4, t, 2);
+}
+
 void OledManager::drawMain(const DisplayModel& m) {
   char b[32];
-  // Yellow band: title + system status.
-  textAt(0, 0, "KITCHEN MONITOR");
-  if (m.simulation) textAt(110, 0, "SIM");
-  const char* status = "MONITORING";
-  if (m.envFault || m.airFault) status = "SENSOR FAULT";
+  drawHeader(m);
+
+  const char* status = nullptr;
+  if (m.calibrating) { snprintf(b, sizeof b, "CAL %u%%", m.calPercent); status = b; }
+  else if (m.envFault || m.airFault) status = "SENSOR FAULT";
   else if (m.airWarmingUp) status = "WARMING UP";
-  if (m.calibrating) snprintf(b, sizeof b, "Status: CAL %u%%", m.calPercent);
-  else snprintf(b, sizeof b, "Status: %s", status);
-  textAt(0, 8, b);
+  drawTicker(m, status);
 
-  // Blue band: measurements.
-  if (m.envValid) snprintf(b, sizeof b, "Temp: %.1f C", m.temperature);
-  else snprintf(b, sizeof b, "Temp: --.- C");
-  textAt(0, BLUE_Y + 1, b);
-  if (m.envValid) snprintf(b, sizeof b, "Humidity: %.0f%%", m.humidity);
-  else snprintf(b, sizeof b, "Humidity: --%%");
-  textAt(0, BLUE_Y + 10, b);
-
-  if (m.airFault) snprintf(b, sizeof b, "Air Quality: FAIL");
-  else if (m.airWarmingUp)
-    snprintf(b, sizeof b, "Air: WARMUP %lum%02lus", (unsigned long)(m.warmupLeftS / 60),
-             (unsigned long)(m.warmupLeftS % 60));
-  else if (!m.airCalibrated) snprintf(b, sizeof b, "Air Quality: NO CAL");
-  else snprintf(b, sizeof b, "Air Quality: %s", severityName(m.airSeverity));
-  textAt(0, BLUE_Y + 19, b);
-
-  // Live MQ-135 reading (AO voltage, as a multimeter would show on the module).
-  // Shown in every state so wiring problems are visible without the console.
+  // Last two lines: unchanged.
   if (!m.airAoValid) snprintf(b, sizeof b, "MQ135 AO: --- V");
   else if (m.airUsable) snprintf(b, sizeof b, "AO %.2fV  index %.0f", m.airAoVolts, m.airIndex);
   else snprintf(b, sizeof b, "MQ135 AO: %.2f V", m.airAoVolts);
@@ -213,39 +229,14 @@ void OledManager::drawMain(const DisplayModel& m) {
 }
 
 void OledManager::drawAlert(const DisplayModel& m) {
-  char b[28];
+  char b[40];
   const bool phase = blinkPhase(m.nowMs);
+  drawHeader(m);
 
-  // Yellow band: severity in the 2x font (exactly 16 px tall).
-  // MEDIUM blinks the text, HIGH blinks the whole screen (inversion).
-  if (m.overall != Severity::Medium || phase) centered(0, severityName(m.overall), 2);
-
-  // Blue band: what, values, other categories, outputs.
-  snprintf(b, sizeof b, "ALERT %s", categoryName(m.worst));
-  textAt(0, BLUE_Y + 1, b);
-
-  switch (m.worst) {
-    case Category::AirQuality:
-      snprintf(b, sizeof b, "Air index: %.0f (rel.)", m.airIndex);
-      break;
-    case Category::Temperature:
-      if (m.envValid) snprintf(b, sizeof b, "Temp %.1fC Feels %.1f", m.temperature, m.heatIndex);
-      else snprintf(b, sizeof b, "Temp: --.-");
-      break;
-    case Category::Humidity:
-      if (m.envValid) snprintf(b, sizeof b, "Hum %.0f%%  Temp %.1fC", m.humidity, m.temperature);
-      else snprintf(b, sizeof b, "Hum: --");
-      break;
-    default:
-      snprintf(b, sizeof b, "%s", systemText(m.systemFlags));
-      break;
-  }
-  textAt(0, BLUE_Y + 11, b);
-
-  // Live MQ-135 reading on every alert screen too.
-  if (m.airAoValid) snprintf(b, sizeof b, "MQ135 AO: %.2f V", m.airAoVolts);
-  else snprintf(b, sizeof b, "MQ135 AO: --- V");
-  textAt(0, BLUE_Y + 20, b);
+  // Scrolling line starts with what the alert is about.
+  if (m.worst == Category::System) snprintf(b, sizeof b, "ALERT %s", systemText(m.systemFlags));
+  else snprintf(b, sizeof b, "ALERT %s", categoryName(m.worst));
+  drawTicker(m, b);
 
   // Other active categories (compact).
   char also[28] = "";

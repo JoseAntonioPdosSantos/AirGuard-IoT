@@ -63,6 +63,8 @@ class OledManager {
   void drawAlert(const DisplayModel& m);
   void drawMessage(const DisplayModel& m);
   void drawFooter(const DisplayModel& m);
+  void drawHeader(const DisplayModel& m);
+  void drawTicker(const DisplayModel& m, const char* prefix);
   void flush();
 
   bool     ok_ = false;

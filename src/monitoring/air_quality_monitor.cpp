@@ -118,7 +118,7 @@ void AirQualityMonitor::addSample(uint16_t rawAdc, float tempC, float rh, bool e
   vWindow_[vPos_] = s.vSensor;
   vPos_ = (vPos_ + 1) % mq135::V_MEDIAN_WINDOW;
   if (vCount_ < mq135::V_MEDIAN_WINDOW) ++vCount_;
-  float vs[mq135::V_MEDIAN_WINDOW];
+  float vs[mq135::V_MEDIAN_WINDOW] = {};
   for (uint8_t i = 0; i < vCount_; ++i) vs[i] = vWindow_[i];
   for (uint8_t i = 1; i < vCount_; ++i) {
     const float key = vs[i];
