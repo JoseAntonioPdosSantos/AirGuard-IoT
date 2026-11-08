@@ -41,7 +41,7 @@ constexpr uint8_t RELAY      = 23;  // relay-module IN
 // GREEN LED: NOT on a GPIO (3V3 -> 1k -> LED -> relay NC contact), as before.
 
 // ---- Analog ----------------------------------------------------------------
-// MQ-135 AO -> 10k -> GPIO34 (ADC1_CH6) -> 20k -> GND. NEVER connect AO directly.
+// MQ-135 AO -> 10k -> GPIO34 (ADC1_CH6) -> 10k -> GND. NEVER connect AO directly.
 constexpr uint8_t MQ135_ADC = 34;
 
 // ---- Reserved --------------------------------------------------------------

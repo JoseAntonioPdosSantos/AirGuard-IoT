@@ -84,8 +84,15 @@ namespace mq135 {
 constexpr float ADC_VREF        = 3.30f;    // RP2040: ADC_VREF = 3V3; ESP32: board::adcRead12 rescales mV to 3.3 V
 constexpr float ADC_MAX_COUNTS  = 4095.0f;  // 12-bit
 constexpr float DIVIDER_R_TOP   = 10000.0f; // AO -> R_TOP -> ADC
+#if defined(ARDUINO_ARCH_ESP32)
+// ESP32: 10k / 10k -> AO 5 V = 2.5 V at the pin. The ESP32 ADC (11 dB) only
+// reads up to ~3.1 V; with 10k/20k (3.33 V at 5 V) strong gas saturated the
+// ADC and was reported as a sensor FAULT instead of a HIGH reading.
+constexpr float DIVIDER_R_BOTTOM = 10000.0f;// ADC -> R_BOTTOM -> GND
+#else
 constexpr float DIVIDER_R_BOTTOM = 20000.0f;// ADC -> R_BOTTOM -> GND (2 x 10k in SERIES;
                                             // if they are in PARALLEL use 5000.0f)
+#endif
 constexpr float CIRCUIT_VOLTAGE = 5.00f;    // Vc across Rs + RL (measure it)
 constexpr float LOAD_RESISTANCE = 10000.0f; // RL on the module (often 1k/10k/20k!)
 

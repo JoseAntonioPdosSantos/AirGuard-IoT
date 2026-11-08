@@ -27,17 +27,19 @@ RP2040-Zero (`pio run -e rp2040zero`). O código específico de cada placa fica 
 | | DATA (S) | **GPIO27** | |
 | **MQ-135 (módulo)** | VCC | **VIN (5 V)** | aquecedor ~150 mA, precisa de 5 V |
 | | GND | GND | |
-| | AO | 10 kΩ → **GPIO34** → 20 kΩ → GND | **divisor obrigatório**: AO chega a 5 V |
+| | AO | 10 kΩ → **GPIO34** → 10 kΩ → GND | **divisor obrigatório**: AO chega a 5 V |
 | **Buzzer** | + | 1 kΩ → **GPIO25** | |
 | **LED vermelho** | ânodo | 1 kΩ → **GPIO26** | cátodo no GND |
 | **LED amarelo** | ânodo | 1 kΩ → **GPIO33** | cátodo no GND |
 | **Relé (módulo)** | IN | **GPIO23** | VCC do módulo conforme o modelo (pendência de doc 01) |
 | **LED verde** | — | 3V3 → 1 kΩ → LED → contato **NC** do relé, COM → GND | sem GPIO, como antes |
 
-O divisor 10 kΩ / 20 kΩ dá no GPIO34, com AO = 5 V, 5 × 20 / 30 = **3,33 V**. É um pouco acima do
-que o ADC do ESP32 mede (~3,1 V com atenuação de 11 dB). Com o MQ-135 em ar limpo, o AO fica
-perto de 1 V (0,67 V no pino), então a margem está sobrando. Leituras acima de ~3,06 V no pino
-são tratadas como **saturação** (`MQ135_ADC_MAX_VALID = 3800` no ESP32).
+O divisor no ESP32 é **10 kΩ / 10 kΩ**: com AO = 5 V, o GPIO34 recebe **2,5 V**, dentro do que o
+ADC do ESP32 mede (~0,15–3,1 V com atenuação de 11 dB). A primeira versão usava 10 kΩ / 20 kΩ,
+herdada da RP2040 (3,33 V a 5 V). Na bancada, com gás forte, o AO chegou perto de 5 V, o ADC
+saturou e o firmware acusou **falha do sensor** em vez de nível alto. Leituras acima de ~3,06 V no
+pino continuam tratadas como saturação (`MQ135_ADC_MAX_VALID = 3800`), mas com 10k/10k elas só
+ocorrem se o AO passar de ~6 V, o que indica um erro de ligação.
 
 ## 2. Pinos evitados e por quê
 
