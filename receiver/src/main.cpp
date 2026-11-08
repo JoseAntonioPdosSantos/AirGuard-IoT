@@ -110,6 +110,7 @@ void setup() {
   while (!Serial && (uint32_t)(millis() - t0) < 1500) {}
   Serial.print("\r\n[BOOT] AirGuard Receiver (LoRa -> LCD + LEDs)\r\n");
 
+  analogReadResolution(12);
   Wire.setSDA(rxcfg::I2C_SDA);
   Wire.setSCL(rxcfg::I2C_SCL);
   Wire.begin();
@@ -141,6 +142,8 @@ void loop() {
   if ((uint32_t)(now - lastStat) >= 10000) {
     lastStat = now;
     if (!g_lcd.ok()) g_lcd.begin();
+    const float vPin = analogRead(rxcfg::PROBE_ADC) * 3.3f / 4095.0f;
+    Serial.printf("[PROBE] GP26 %.2f V -> line %.2f V (10k/10k divider)\r\n", vPin, vPin * 2.0f);
     Serial.printf("[STAT] LCD %s (0x%02X) | LoRa %s | events %lu, heartbeats %lu | overall %s%s\r\n",
                   g_lcd.ok() ? "ok" : "NOT FOUND", g_lcd.address(), g_radio.ok() ? "ok" : "FAULT",
                   static_cast<unsigned long>(g_state.events()), static_cast<unsigned long>(g_state.heartbeats()),
