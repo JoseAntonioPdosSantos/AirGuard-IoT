@@ -95,7 +95,7 @@ constexpr bool RESTORE_HIGH_AFTER_REBOOT = true;
 // ---------------------------------------------------------------------------
 // Buzzer
 // ---------------------------------------------------------------------------
-constexpr bool BUZZER_IS_PASSIVE = false;  // false: active buzzer (on/off)
+constexpr bool BUZZER_IS_PASSIVE = true;   // installed buzzer is PASSIVE (needs a tone)
 constexpr uint16_t BUZZER_FREQ_LOW_HZ    = 2000;  // only for passive buzzers
 constexpr uint16_t BUZZER_FREQ_MEDIUM_HZ = 2500;
 constexpr uint16_t BUZZER_FREQ_HIGH_HZ   = 3100;
