@@ -55,12 +55,12 @@ MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O 
 
 | Tensão no AO | `air_index` | Severidade |
 |---|---|---|
-| < 0,30 V | < 6 | NORMAL |
-| ≥ 0,30 V | ≥ 6 | **MEDIUM** (não há LOW para gás, a pedido do usuário) |
+| < 0,90 V | < 18 | NORMAL |
+| ≥ 0,90 V | ≥ 18 | **MEDIUM** (não há LOW para gás, a pedido do usuário) |
 | ≥ 1,0 V | ≥ 20 | HIGH |
 | histerese | 0,05 V (1 ponto) | |
 
-Valores **iniciais**, definidos pela bancada: ar limpo ~0,5 V; isqueiro perto do sensor leva o AO a quase
+Valores definidos pela bancada: ar limpo ~0,2–0,6 V (com 0,30 V o MEDIUM disparava sozinho, por isso subiu para 0,90 V); a faixa MEDIUM é estreita (0,90–1,0 V) e um vazamento costuma ir direto a HIGH; isqueiro perto do sensor leva o AO a quase
 5 V. Ajuste `AO_LOW_V`, `AO_MEDIUM_V` e `AO_HIGH_V` em `thresholds.h` após observar a cozinha real.
 A tensão do AO depende do sensor, do resistor de carga do módulo e da temperatura/umidade; por isso
 os limites valem para **este** módulo e precisam ser revistos se ele for trocado. O aquecimento de

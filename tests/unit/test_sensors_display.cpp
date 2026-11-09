@@ -305,13 +305,14 @@ TEST(mq135_voltage_thresholds_map_volts) {
   HysteresisClassifier c(thr::AIR_VOLTAGE);
   auto v = [](float volts) { return 100.0f * volts / 5.0f; };
   CHECK(c.update(v(0.21f)) == Severity::Normal);   // clean air on the bench
-  CHECK(c.update(v(0.27f)) == Severity::Normal);
-  CHECK(c.update(v(0.31f)) == Severity::Medium);   // no LOW: MEDIUM from 0.30 V
+  CHECK(c.update(v(0.58f)) == Severity::Normal);   // was a false MEDIUM with 0.30 V
+  CHECK(c.update(v(0.89f)) == Severity::Normal);
+  CHECK(c.update(v(0.91f)) == Severity::Medium);   // no LOW: MEDIUM from 0.90 V
   CHECK(c.update(v(1.05f)) == Severity::High);     // HIGH from 1.0 V
   CHECK(c.update(v(0.97f)) == Severity::High);     // within 0.05 V hysteresis
-  CHECK(c.update(v(0.90f)) == Severity::Medium);
-  CHECK(c.update(v(0.26f)) == Severity::Medium);   // stays until < 0.25 V
-  CHECK(c.update(v(0.22f)) == Severity::Normal);   // never passes through LOW
+  CHECK(c.update(v(0.93f)) == Severity::Medium);
+  CHECK(c.update(v(0.86f)) == Severity::Medium);   // stays until < 0.85 V
+  CHECK(c.update(v(0.84f)) == Severity::Normal);   // never passes through LOW
 }
 
 TEST(mq135_voltage_from_rs_inverts_rs_formula) {
