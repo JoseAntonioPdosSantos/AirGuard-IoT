@@ -308,9 +308,11 @@ TEST(mq135_voltage_thresholds_map_volts) {
   CHECK(c.update(v(0.58f)) == Severity::Normal);   // was a false MEDIUM with 0.30 V
   CHECK(c.update(v(0.89f)) == Severity::Normal);
   CHECK(c.update(v(0.91f)) == Severity::Medium);   // no LOW: MEDIUM from 0.90 V
-  CHECK(c.update(v(1.05f)) == Severity::High);     // HIGH from 1.0 V
-  CHECK(c.update(v(0.97f)) == Severity::High);     // within 0.05 V hysteresis
-  CHECK(c.update(v(0.93f)) == Severity::Medium);
+  CHECK(c.update(v(1.20f)) == Severity::Medium);   // MEDIUM band 0.90-1.5 V
+  CHECK(c.update(v(1.49f)) == Severity::Medium);
+  CHECK(c.update(v(1.55f)) == Severity::High);     // HIGH from 1.5 V
+  CHECK(c.update(v(1.47f)) == Severity::High);     // within 0.05 V hysteresis
+  CHECK(c.update(v(1.40f)) == Severity::Medium);
   CHECK(c.update(v(0.86f)) == Severity::Medium);   // stays until < 0.85 V
   CHECK(c.update(v(0.84f)) == Severity::Normal);   // never passes through LOW
 }
