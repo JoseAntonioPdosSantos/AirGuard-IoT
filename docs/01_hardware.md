@@ -13,7 +13,7 @@
 | 3 | Temperatura/umidade | Módulo **DHT11** (3 pinos: S, VCC, GND) | 3,3 V | 3,3 V | 0–50 °C ±2 °C; 20–90 %UR ±5 %; resolução de 1 °C / 1 % |
 | 4 | Rádio LoRa | **REYAX RYLR998** (SX1262 interno, comandos AT por UART) | 3,3 V | 3,3 V (UART 115200) | Payload máx. **240 bytes**. **Nunca transmitir sem antena** |
 | 5 | Display | OLED **0,96" SSD1306 128×64 I2C, amarelo/azul** | 2,2–5,5 V → usar **3,3 V** | 3,3 V | Endereço 0x3C (impresso "0x78") |
-| 6 | Buzzer | **[PENDENTE]** ativo ou passivo | via GPIO + 1 kΩ | 3,3 V | Ver §4.3 |
+| 6 | Buzzer | **ativo** (oscilador interno) | via GPIO + 1 kΩ | 3,3 V | Ver §4.3 |
 | 7 | Relé | Módulo relé 1 canal **[PENDENTE: tensão da bobina e tipo de entrada]** | **ver §4.4** | IN | Contato NC usado para o LED verde |
 | 8 | LED vermelho | LED + 1 kΩ | GPIO | 3,3 V | ~1,3 mA |
 | 9 | LED amarelo | LED + 1 kΩ | GPIO | 3,3 V | ~1,2 mA |
@@ -96,8 +96,8 @@ GND ────────────┘
   transistor NPN (BC547/2N2222): GP6 → 1 kΩ → base, emissor no GND, buzzer entre 5 V e o
   coletor, mais um diodo 1N4148 em antiparalelo se o buzzer for magnético.
   **Não remova o resistor ligando o buzzer direto no GPIO.**
-- **[PENDENTE]** Informe se o buzzer é ativo ou passivo. Para passivo, defina
-  `cfg::BUZZER_IS_PASSIVE = true`.
+- O buzzer instalado é **ativo** (`cfg::BUZZER_IS_PASSIVE = false`): o firmware só coloca o pino
+  em HIGH/LOW. Se um dia voltar a usar um passivo, defina `true` (usa `tone()`).
 
 ### 4.4 Relé alimentado por 3,3 V ❌
 
@@ -174,7 +174,7 @@ GND ─────────── COM ◄──┘      relé desligado: NC�
 |---|---|---|
 | 1 | Relé em 3,3 V | Informar o modelo; provavelmente mover o VCC para 5 V (§4.4) |
 | 2 | Divisor do MQ-135: série ou paralelo | Confirmar e ajustar `DIVIDER_R_BOTTOM` (§4.2) |
-| 3 | Buzzer ativo ou passivo e volume | Testar; transistor se necessário (§4.3) |
+| 3 | Volume do buzzer (ativo) | Testar; transistor se necessário (§4.3) |
 | 4 | RL do módulo MQ-135 | Medir e configurar RL_eff (§4.2) |
 | 5 | Homologação ANATEL do RYLR998 | Verificar (doc 03) |
 | 6 | Capacidade do regulador 3,3 V | Datasheet/esquema da placa (§5) |

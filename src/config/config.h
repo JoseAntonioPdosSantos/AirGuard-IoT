@@ -122,8 +122,10 @@ constexpr bool RESTORE_HIGH_AFTER_REBOOT = true;
 // ---------------------------------------------------------------------------
 // Buzzer
 // ---------------------------------------------------------------------------
-constexpr bool BUZZER_IS_PASSIVE = true;   // installed buzzer is PASSIVE (needs a tone)
-constexpr uint16_t BUZZER_FREQ_LOW_HZ    = 2000;  // only for passive buzzers
+// Installed buzzer is ACTIVE (internal oscillator): the pin is just driven
+// HIGH/LOW. Set true only for a passive buzzer, which needs tone() PWM.
+constexpr bool BUZZER_IS_PASSIVE = false;
+constexpr uint16_t BUZZER_FREQ_LOW_HZ    = 2000;  // only used when BUZZER_IS_PASSIVE
 constexpr uint16_t BUZZER_FREQ_MEDIUM_HZ = 2500;
 constexpr uint16_t BUZZER_FREQ_HIGH_HZ   = 3100;
 // Patterns: alternating ON/OFF durations in ms, starting with ON, repeated.

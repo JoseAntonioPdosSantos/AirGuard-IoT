@@ -26,7 +26,7 @@
 ## Hardware ainda não confirmado
 
 - Relé alimentado em 3,3 V (provável problema com um módulo de 5 V), ligação do divisor do
-  MQ-135 (série ou paralelo), tipo e volume do buzzer ligado direto no GPIO, RL do módulo
+  MQ-135 (série ou paralelo), volume do buzzer ativo ligado direto no GPIO, RL do módulo
   MQ-135, homologação ANATEL do RYLR998, capacidade do regulador 3,3 V (ver
   `docs/01_hardware.md` §6).
 - O LED verde depende do contato NC do relé: ele indica "relé desligado", não "firmware

@@ -16,7 +16,7 @@ SYSTEM.
 | **LED vermelho** | apagado | apagado | apagado | **piscando 2 Hz** |
 
 - Os padrões ficam em `cfg::BUZZ_PATTERN_*` como pares de duração ligado/desligado em ms, e
-  podem ser ajustados ao buzzer real. Com um buzzer passivo, os tons são 2,0 / 2,5 / 3,1 kHz.
+  podem ser ajustados ao buzzer real. O buzzer instalado é **ativo** (`BUZZER_IS_PASSIVE = false`): o pino só liga e desliga, e o tom é o do próprio buzzer. Com um buzzer passivo (`true`), os tons seriam 2,0 / 2,5 / 3,1 kHz.
 - No boot há um bipe curto de autoteste (150 ms).
 - Durante o boot e o aquecimento do MQ-135, sem alerta ativo, o LED amarelo pisca devagar (1 Hz).
 - O LED verde é ligado **por hardware** ao contato NC do relé (doc 01 §4.5). Ele apaga sempre que
