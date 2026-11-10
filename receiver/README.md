@@ -92,6 +92,12 @@ cd receiver
 Se o upload não funcionar (picotool sem permissão), segure **BOOT**, aperte **RESET**, solte
 **BOOT** e copie `receiver/.pio/build/rp2040zero/firmware.uf2` para a unidade `RPI-RP2`.
 
+## Telemetria para o AirGuard Web
+
+Cada quadro recebido (com RSSI, SNR e o que o receptor fez com ele), cada ACK enviado e um resumo a
+cada 10 s saem na USB como linhas `@T {...}`, no meio do log. A ponte
+`AirGuard-Web/bridge/serial_bridge.py` as envia ao painel **Ambiente**. Formato: [docs/11_telemetry.md](../docs/11_telemetry.md).
+
 ## Configuração (`receiver/src/rx_config.h`)
 
 - Rádio: **igual ao sensor** (915 MHz, SF8, BW 125 kHz, CR 4/5, preâmbulo 12, rede 6, 14 dBm).

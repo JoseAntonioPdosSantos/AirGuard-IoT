@@ -41,10 +41,12 @@ void JsonWriter::put(char c) {
 
 void JsonWriter::raw(const char* s) { while (*s) put(*s++); }
 
-void JsonWriter::escaped(const char* s) {
+void JsonWriter::escaped(const char* s) { escaped(s, strlen(s)); }
+
+void JsonWriter::escaped(const char* s, size_t n) {
   put('"');
-  for (; *s; ++s) {
-    const unsigned char c = static_cast<unsigned char>(*s);
+  for (size_t i = 0; i < n; ++i) {
+    const unsigned char c = static_cast<unsigned char>(s[i]);
     if (c == '"' || c == '\\') { put('\\'); put(static_cast<char>(c)); }
     else if (c < 0x20) {
       char tmp[7];
@@ -63,6 +65,7 @@ void JsonWriter::key(const char* k) {
 }
 
 void JsonWriter::str(const char* k, const char* v) { key(k); escaped(v); }
+void JsonWriter::strn(const char* k, const char* v, size_t n) { key(k); escaped(v, n); }
 
 void JsonWriter::num(const char* k, int32_t v) {
   char tmp[16];

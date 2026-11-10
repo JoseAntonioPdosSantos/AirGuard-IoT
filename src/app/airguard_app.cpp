@@ -3,10 +3,12 @@
 #include <Arduino.h>
 #include <string.h>
 
+#include "../communication/telemetry_codec.h"
 #include "../config/config.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
 #include "../utils/persistent_store.h"
+#include "../utils/telemetry.h"
 
 namespace {
 
@@ -23,6 +25,13 @@ uint8_t priorityFor(const AlertEvent& e) {
     case Severity::Medium: return 4;
     default: return 3;
   }
+}
+
+// Telemetry name of a queued frame, from the id tags above.
+const char* frameKind(uint32_t id) {
+  if ((id & 0xF0000000UL) == ACK_ID_TAG) return "ack";
+  if ((id & 0xF0000000UL) == HB_ID_TAG) return "hb";
+  return "event";
 }
 
 int8_t categoryOfEvent(const uint32_t* lastIds, uint32_t id) {
@@ -90,6 +99,16 @@ void AirGuardApp::setup() {
   board::watchdogBegin(cfg::WATCHDOG_TIMEOUT_MS);
   LOGI("BOOT", "MQ-135 warm-up %lu s. Type 'help' for console commands.",
        static_cast<unsigned long>(cfg::DEV_SKIP_MQ135_WARMUP ? 0 : cfg::MQ135_WARMUP_MS / 1000));
+
+  char t[tlm::SMALL_CAP];
+  tlm::Line l(t, sizeof t, "node", "boot", millis());
+  l.w().str("fw", AIRGUARD_FW_VERSION);
+  l.w().str("device", cfg::DEVICE_ID);
+  l.w().str("gateway", cfg::GATEWAY_ID);
+  l.w().unum("boot", boot);
+  l.w().flt("gas_med", thr::GAS_VOLTS.above.medium, 2);
+  l.w().flt("gas_high", thr::GAS_VOLTS.above.high, 2);
+  telemetry::write(t, l.finish());
 }
 
 // ===========================================================================
@@ -105,6 +124,7 @@ void AirGuardApp::loop() {
   taskOutputs(now);
   taskDisplay(now);
   taskStatusLog(now);
+  taskTelemetry(now);
 }
 
 // ---------------------------------------------------------------------------
@@ -197,6 +217,18 @@ void AirGuardApp::queueEvent(const AlertEvent& e, uint32_t now) {
          eventKindName(e.kind), categoryName(e.category), severityName(e.severity),
          severityName(e.previous), e.reminder ? " reminder" : "");
   }
+  {
+    char t[tlm::SMALL_CAP];
+    tlm::Line l(t, sizeof t, "node", "evt", now);
+    l.w().unum("id", e.eventId);
+    l.w().str("type", eventKindName(e.kind));
+    l.w().str("cat", categoryName(e.category));
+    l.w().str("sev", severityName(e.severity));
+    l.w().str("prev", severityName(e.previous));
+    if (e.reminder) l.w().boolean("reminder", true);
+    if (e.restored) l.w().boolean("restored", true);
+    telemetry::write(t, l.finish());
+  }
   if (n == 0) {
     LOGE("EVENT", "could not encode event #%lu", static_cast<unsigned long>(e.eventId));
     return;
@@ -223,6 +255,7 @@ void AirGuardApp::taskRadio(uint32_t now) {
   if (lora_.takeTxDone(ok) && inFlight_) {
     inFlight_ = false;
     const int8_t ci = categoryOfEvent(lastEventId_, inFlightId_);
+    tlmTxDone(inFlightId_, ok, now);
     if (ok) {
       ack_.onTransmitted(inFlightId_, now);
       const AckManager::Entry* en = ack_.find(inFlightId_);
@@ -256,6 +289,7 @@ void AirGuardApp::taskRadio(uint32_t now) {
         case LoraManager::TxResult::Started:
           inFlight_ = true;
           inFlightId_ = id;
+          tlmTx(id, e->attempts + 1, e->payload, e->len, now);
           if (e->attempts > 0)
             LOGW("LORA", "retransmission %u of id %lu (no ACK in %lu s)", e->attempts,
                  static_cast<unsigned long>(id), static_cast<unsigned long>(cfg::ACK_TIMEOUT_MS / 1000));
@@ -276,7 +310,33 @@ void AirGuardApp::taskRadio(uint32_t now) {
          static_cast<unsigned long>(failedId), cfg::ACK_MAX_RETRIES + 1);
     const int8_t ci = categoryOfEvent(lastEventId_, failedId);
     if (ci >= 0) link_[ci] = LinkState::Failed;
+    char t[tlm::SMALL_CAP];
+    tlm::Line l(t, sizeof t, "node", "fail", now);
+    l.w().unum("id", failedId);
+    l.w().unum("tries", cfg::ACK_MAX_RETRIES + 1);
+    telemetry::write(t, l.finish());
   }
+}
+
+void AirGuardApp::tlmTx(uint32_t id, uint8_t attempt, const uint8_t* frame, size_t len, uint32_t now) {
+  char t[tlm::LINE_CAP];
+  tlm::Line l(t, sizeof t, "node", "tx", now);
+  l.w().unum("id", id);
+  l.w().str("kind", frameKind(id));
+  l.w().unum("try", attempt);
+  l.w().unum("len", len);
+  l.w().strn("frame", reinterpret_cast<const char*>(frame), len);
+  telemetry::write(t, l.finish());
+}
+
+void AirGuardApp::tlmTxDone(uint32_t id, bool ok, uint32_t now) {
+  char t[tlm::SMALL_CAP];
+  tlm::Line l(t, sizeof t, "node", "txd", now);
+  l.w().unum("id", id);
+  l.w().str("kind", frameKind(id));
+  l.w().boolean("ok", ok);
+  if (ok) l.w().unum("air", lora_.lastAirtimeMs());
+  telemetry::write(t, l.finish());
 }
 
 void AirGuardApp::queueHeartbeat(uint32_t now) {
@@ -309,6 +369,13 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
   proto::IncomingMessage m;
   const proto::ParseError err = proto::parse(data, len, m);
   if (err != proto::ParseError::Ok) {
+    char t[tlm::SMALL_CAP];
+    tlm::Line l(t, sizeof t, "node", "rxbad", now);
+    l.w().str("err", proto::parseErrorName(err));
+    l.w().unum("len", len);
+    l.w().flt("rssi", rssi, 0);
+    l.w().flt("snr", snr, 1);
+    telemetry::write(t, l.finish());
     ++rxRejected_;
     LOGW("RX", "frame from LoRa addr %u rejected (%s), %u B, RSSI %.0f",
          lora_.lastRxAddress(), proto::parseErrorName(err), static_cast<unsigned>(len), rssi);
@@ -320,7 +387,18 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
   }
 
   if (m.type == proto::MsgType::Ack) {
-    if (ack_.onAck(m.id, now)) {
+    const bool fresh = ack_.onAck(m.id, now);
+    {
+      char t[tlm::SMALL_CAP];
+      tlm::Line l(t, sizeof t, "node", "ack", now);
+      l.w().unum("id", m.id);
+      l.w().str("from", m.sender);
+      l.w().flt("rssi", rssi, 0);
+      l.w().flt("snr", snr, 1);
+      if (!fresh) l.w().boolean("dup", true);
+      telemetry::write(t, l.finish());
+    }
+    if (fresh) {
       LOGI("RX", "ACK for event #%lu from %s (RSSI %.0f dBm, SNR %.1f dB)",
            static_cast<unsigned long>(m.id), m.sender, rssi, snr);
       const int8_t ci = categoryOfEvent(lastEventId_, m.id);
@@ -346,6 +424,16 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
   }
   LOGI("RX", "TEXT #%lu from %s (RSSI %.0f dBm): \"%s\"", static_cast<unsigned long>(m.id),
        m.sender, rssi, m.text);
+  {
+    char t[tlm::SMALL_CAP];
+    tlm::Line l(t, sizeof t, "node", "text", now);
+    l.w().unum("id", m.id);
+    l.w().str("from", m.sender);
+    l.w().str("text", m.text);
+    l.w().flt("rssi", rssi, 0);
+    l.w().flt("snr", snr, 1);
+    telemetry::write(t, l.finish());
+  }
   if (msgs_.push(m.sender, m.text)) ++textShown_;
   else LOGW("RX", "message queue full or empty text: not displayed");
   sendAck(m.sender, m.id, now);
@@ -419,6 +507,37 @@ void AirGuardApp::taskStatusLog(uint32_t now) {
   if ((uint32_t)(now - lastStatusMs_) < cfg::STATUS_LOG_PERIOD_MS) return;
   lastStatusMs_ = now;
   printStatus(now);
+}
+
+void AirGuardApp::taskTelemetry(uint32_t now) {
+  if (cfg::TELEMETRY_PERIOD_MS == 0 || !telemetry::enabled()) return;
+  if ((uint32_t)(now - lastTlmMs_) < cfg::TELEMETRY_PERIOD_MS) return;
+  lastTlmMs_ = now;
+  const AlertManager& al = alerts_;
+  tlm::NodeEnv e;
+  e.envValid = env_.valid();
+  e.temperature = env_.temperature();
+  e.humidity = env_.humidity();
+  e.heatIndex = env_.heatIndex();
+  e.envState = env_.faulted() ? "FAULT" : (env_.valid() ? "ok" : "invalid");
+  e.airValid = air_.usable(now);
+  e.gasVolts = air_.last().vAlarm;
+  e.aoVolts = air_.last().vAo;
+  e.rawAdc = air_.last().raw;
+  e.airState = air_.faulted() ? "FAULT"
+               : (air_.warmingUp(now) && !air_.usable(now) ? "WARMUP" : (air_.usable(now) ? "ok" : "invalid"));
+  e.simulated = air_.simulating() || env_.simulating();
+  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) e.levels[i] = al.category(static_cast<Category>(i));
+  e.overall = al.overall();
+  e.relayOn = relay_.energised();
+  e.systemFlags = al.systemFlags();
+  e.lora = lora_.state() == LoraManager::State::Fault ? "FAULT"
+           : (lora_.state() == LoraManager::State::Init ? "INIT" : "ok");
+  e.txQueue = ack_.pending();
+  e.waitAck = ack_.waitingAck();
+  e.uptimeS = now / 1000;
+  char t[tlm::SMALL_CAP];
+  telemetry::write(t, tlm::encodeNodeEnv(e, now, t, sizeof t));
 }
 
 void AirGuardApp::printStatus(uint32_t now) {

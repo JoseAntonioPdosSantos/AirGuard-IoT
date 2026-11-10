@@ -78,6 +78,7 @@ Onde mexer no dia a dia: **limites** em `src/config/thresholds.h`, **tempos e po
 | 08 | [Limitações](docs/08_limitations.md) | **limitações conhecidas** |
 | 09 | [Compilação e gravação](docs/09_build_flash.md) | **compilação**, **gravação**, validação física |
 | 10 | [Referências](docs/10_references.md) | **referências técnicas e científicas** |
+| 11 | [Telemetria](docs/11_telemetry.md) | linhas `@T` na USB das duas placas para o **painel Ambiente** do AirGuard Web |
 
 ## Estado atual
 

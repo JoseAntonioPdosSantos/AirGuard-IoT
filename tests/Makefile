@@ -12,6 +12,7 @@ SRC_CORE := ../src/monitoring/severity_logic.cpp \
             ../src/communication/message_protocol.cpp \
             ../src/communication/ack_manager.cpp \
             ../src/communication/rylr998_codec.cpp \
+            ../src/communication/telemetry_codec.cpp \
             ../src/actuators/buzzer_pattern.cpp \
             ../src/display/screen_logic.cpp \
             ../src/utils/text_utils.cpp \

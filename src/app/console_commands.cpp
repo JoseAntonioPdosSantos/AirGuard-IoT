@@ -10,6 +10,7 @@
 #include "../config/hardware_pins.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
+#include "../utils/telemetry.h"
 #include "airguard_app.h"
 
 namespace {
@@ -33,6 +34,7 @@ const char* HELP =
     "  sim text <message>                   inject a TEXT from WHATSAPP_GATEWAY\r\n"
     "  sim off                              disable every simulation\r\n"
     "  log debug|info|warn                  log level\r\n"
+    "  tlm on|off                           '@T' telemetry lines for AirGuard Web\r\n"
     "  reboot                               reboot (test: reboot during alert)\r\n";
 
 void writeRaw(const char* s) {
@@ -118,6 +120,13 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
     return;
   }
 
+  if (!strcmp(cmd, "tlm")) {
+    const char* a = nextWord(p);
+    if (!strcmp(a, "on")) telemetry::setEnabled(true);
+    else if (!strcmp(a, "off")) telemetry::setEnabled(false);
+    LOGI("CON", "telemetry %s", telemetry::enabled() ? "ON" : "OFF");
+    return;
+  }
   if (!strcmp(cmd, "warmup")) {
     if (!strcmp(nextWord(p), "skip")) {
       air_.skipWarmup();

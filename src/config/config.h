@@ -36,6 +36,9 @@ constexpr uint32_t DISPLAY_BLINK_MS        = 500;
 // likely 3V3 dips during LoRa TX) is repaired within this time.
 constexpr uint32_t DISPLAY_FULL_REFRESH_MS = 2000;
 constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
+// "@T env" telemetry line on USB serial for the AirGuard Web dashboard
+// (docs/11_telemetry.md). 0 = no periodic snapshot (radio records still sent).
+constexpr uint32_t TELEMETRY_PERIOD_MS     = 2000;
 constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;
 
 // ---------------------------------------------------------------------------

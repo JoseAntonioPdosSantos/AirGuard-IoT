@@ -46,6 +46,7 @@ class JsonWriter {
   JsonWriter(char* buf, size_t cap);
   void key(const char* k);
   void str(const char* k, const char* v);
+  void strn(const char* k, const char* v, size_t n);  // v need not be NUL-terminated
   void num(const char* k, int32_t v);
   void unum(const char* k, uint32_t v);
   void flt(const char* k, float v, uint8_t decimals);
@@ -57,6 +58,7 @@ class JsonWriter {
   void put(char c);
   void raw(const char* s);
   void escaped(const char* s);
+  void escaped(const char* s, size_t n);
   char* buf_;
   size_t cap_, len_ = 0;
   bool ok_ = true, first_ = true;

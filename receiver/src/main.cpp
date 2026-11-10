@@ -13,6 +13,7 @@
 #include "radio_link.h"
 #include "rx_config.h"
 #include "rx_state.h"
+#include "rx_telemetry.h"
 
 namespace {
 
@@ -21,6 +22,29 @@ LcdView           g_lcd;
 rx::ReceiverState g_state;
 rx::SeenIds       g_seen;
 int               g_lastRssi = 0;
+
+// Telemetry line for AirGuard Web (USB serial). Dropped, never delayed, when
+// no host is reading.
+void emit(rx::TlmLine& t) {
+  const size_t n = t.finish();
+  if (!n || !Serial) return;
+  if (Serial.availableForWrite() < static_cast<int>(n)) return;
+  Serial.write(reinterpret_cast<const uint8_t*>(t.c_str()), n);
+}
+
+// Every received frame, with what the receiver did with it (`res`):
+//   hb | event | dup (retransmission, ACKed again) | foreign | invalid | other
+void tlmRx(const char* data, size_t len, uint16_t from, int rssi, int snr, const char* res,
+           uint32_t now) {
+  rx::TlmLine t("rx", now);
+  t.num("from", from);
+  t.num("rssi", rssi);
+  t.num("snr", snr);
+  t.num("len", static_cast<long>(len));
+  t.str("res", res);
+  t.strn("frame", data, len);
+  emit(t);
+}
 
 // ACKs waiting for the radio to be free (the node retransmits after 60 s).
 struct PendingAck { uint32_t id; uint16_t addr; };
@@ -31,8 +55,13 @@ void queueAck(uint32_t id, uint16_t addr) {
   for (uint8_t i = 0; i < g_ackCount; ++i)
     if (g_ack[i].id == id) return;
   if (g_ackCount < 4) g_ack[g_ackCount++] = {id, addr};
-  else Serial.printf("[ACK] queue full, ACK #%lu dropped (node will retransmit)\r\n",
-                     static_cast<unsigned long>(id));
+  else {
+    Serial.printf("[ACK] queue full, ACK #%lu dropped (node will retransmit)\r\n",
+                  static_cast<unsigned long>(id));
+    rx::TlmLine t("ackdrop", millis());
+    t.num("id", static_cast<long>(id));
+    emit(t);
+  }
 }
 
 void sendPendingAck(uint32_t now) {
@@ -42,6 +71,11 @@ void sendPendingAck(uint32_t now) {
   if (n && g_radio.send(g_ack[0].addr, json, n, now)) {
     Serial.printf("[ACK] sent for #%lu to addr %u\r\n", static_cast<unsigned long>(g_ack[0].id),
                   g_ack[0].addr);
+    rx::TlmLine t("ack", now);
+    t.num("id", static_cast<long>(g_ack[0].id));
+    t.num("to", g_ack[0].addr);
+    t.strn("frame", json, n);
+    emit(t);
     for (uint8_t i = 1; i < g_ackCount; ++i) g_ack[i - 1] = g_ack[i];
     --g_ackCount;
   }
@@ -50,7 +84,8 @@ void sendPendingAck(uint32_t now) {
 void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr, uint32_t now) {
   rx::Heartbeat hb;
   if (rx::parseHeartbeat(data, len, hb) == rx::ParseResult::Ok) {
-    if (strcmp(hb.device, rxcfg::NODE_ID) != 0) return;
+    if (strcmp(hb.device, rxcfg::NODE_ID) != 0) { tlmRx(data, len, from, rssi, snr, "foreign", now); return; }
+    tlmRx(data, len, from, rssi, snr, "hb", now);
     const bool wasLost = g_state.lost(now, rxcfg::LINK_TIMEOUT_MS);
     g_lastRssi = rssi;
     if (g_state.apply(hb, now) || wasLost)
@@ -63,25 +98,30 @@ void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr,
   rx::Event e;
   const rx::ParseResult r = rx::parseEvent(data, len, e);
   if (r == rx::ParseResult::NotEvent) {
+    tlmRx(data, len, from, rssi, snr, "other", now);
     Serial.printf("[RX] non-event frame ignored: %.*s\r\n", static_cast<int>(len), data);
     return;
   }
   if (r != rx::ParseResult::Ok) {
+    tlmRx(data, len, from, rssi, snr, "invalid", now);
     Serial.printf("[RX] invalid frame (%u) from addr %u: %.*s\r\n", static_cast<unsigned>(r), from,
                   static_cast<int>(len), data);
     return;
   }
   if (strcmp(e.device, rxcfg::NODE_ID) != 0 || (e.dst[0] && strcmp(e.dst, rxcfg::GATEWAY_ID) != 0)) {
+    tlmRx(data, len, from, rssi, snr, "foreign", now);
     Serial.printf("[RX] event from '%s' to '%s' ignored\r\n", e.device, e.dst);
     return;
   }
   g_lastRssi = rssi;
   queueAck(e.eventId, from);  // always ACK, also a duplicate (the node did not get our ACK)
   if (g_seen.checkAndInsert(e.eventId)) {
+    tlmRx(data, len, from, rssi, snr, "dup", now);
     Serial.printf("[RX] duplicate #%lu (retransmission): ACK again\r\n",
                   static_cast<unsigned long>(e.eventId));
     return;
   }
+  tlmRx(data, len, from, rssi, snr, "event", now);
   g_state.apply(e, now);
   Serial.printf("[RX] #%lu %s %s %s (RSSI %d dBm, SNR %d) -> overall %s\r\n",
                 static_cast<unsigned long>(e.eventId), e.recovery ? "RECOVERY" : "ALERT",
@@ -120,6 +160,12 @@ void setup() {
   rp2040.wdt_begin(rxcfg::WATCHDOG_MS);
   g_radio.begin();
   for (uint8_t p : {rxcfg::LED_GREEN, rxcfg::LED_YELLOW, rxcfg::LED_RED}) digitalWrite(p, LOW);
+  rx::TlmLine t("boot", millis());
+  t.str("gateway", rxcfg::GATEWAY_ID);
+  t.str("node", rxcfg::NODE_ID);
+  t.boolean("lora", g_radio.ok());
+  t.boolean("lcd", g_lcd.ok());
+  emit(t);
 }
 
 void loop() {
@@ -147,6 +193,15 @@ void loop() {
                   g_lcd.ok() ? "ok" : "NOT FOUND", g_lcd.address(), g_radio.ok() ? "ok" : "FAULT",
                   static_cast<unsigned long>(g_state.events()), static_cast<unsigned long>(g_state.heartbeats()),
                   rx::sevName(g_state.overall()), g_state.lost(now, rxcfg::LINK_TIMEOUT_MS) ? " (SEM SINAL)" : "");
+    rx::TlmLine t("stat", now);
+    t.boolean("lcd", g_lcd.ok());
+    t.boolean("lora", g_radio.ok());
+    t.num("events", static_cast<long>(g_state.events()));
+    t.num("hbs", static_cast<long>(g_state.heartbeats()));
+    t.str("ov", rx::sevName(g_state.overall()));
+    t.boolean("lost", g_state.lost(now, rxcfg::LINK_TIMEOUT_MS));
+    t.num("rssi", g_lastRssi);
+    emit(t);
   }
 
   static uint32_t lastLcd = 0;

@@ -145,3 +145,32 @@ TEST(rx_lost_signal_after_timeout) {
   CHECK_STR(l1, "SEM SINAL       ");
   CHECK_STR(l2, "ultimo ha 25s   ");
 }
+
+// ---- telemetry lines (AirGuard Web) ------------------------------------------
+#include "../src/rx_telemetry.h"
+
+TEST(rx_telemetry_line_format) {
+  rx::TlmLine t("ack", 42);
+  t.num("id", 7);
+  t.boolean("ok", true);
+  CHECK(t.finish() > 0);
+  CHECK_STR(t.c_str(), "@T {\"src\":\"gw\",\"k\":\"ack\",\"ms\":42,\"id\":7,\"ok\":true}\r\n");
+}
+
+TEST(rx_telemetry_frame_escaped_and_bounded) {
+  const char f[] = "{\"type\":\"HB\"}\nJUNK";
+  rx::TlmLine t("rx", 1);
+  t.strn("frame", f, 14);  // includes the '\n'
+  CHECK(t.finish() > 0);
+  CHECK(strstr(t.c_str(), "\"frame\":\"{\\\"type\\\":\\\"HB\\\"}\\u000a\"}"));
+  CHECK(!strstr(t.c_str(), "JUNK"));
+}
+
+TEST(rx_telemetry_overflow_gives_empty_line) {
+  rx::TlmLine t("rx", 1);
+  char big[800];
+  memset(big, 'a', sizeof big);
+  t.strn("frame", big, sizeof big);
+  CHECK_EQ(t.finish(), 0);
+  CHECK_STR(t.c_str(), "");
+}
