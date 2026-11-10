@@ -6,8 +6,8 @@
   Não substitui detectores homologados (por exemplo, detector de GLP/gás natural com válvula de
   corte, detector de fumaça, detector de CO). É um protótipo de estudo de monitoramento
   ambiental.
-- O MQ-135 **não identifica gases** e **não mede concentração**. O `air_index` é relativo ao ar
-  de referência da calibração. O MQ-135 também **não é adequado para detectar CO ou GLP** com
+- O MQ-135 **não identifica gases** e **não mede concentração**. O alarme usa a tensão do AO,
+  uma resposta relativa do sensor. O MQ-135 também **não é adequado para detectar CO ou GLP** com
   confiabilidade de segurança, porque sensores específicos e certificados existem para isso.
 - Os limites de temperatura e umidade são de conforto e atenção para um protótipo, **não**
   limites médicos.
@@ -18,21 +18,21 @@
 
 - Exige burn-in de 24–48 h e alguns minutos de aquecimento a cada energização. O valor de
   5 min no firmware precisa ser medido.
-- Sofre deriva e envelhecimento, por isso precisa de recalibração periódica.
-- A compensação de temperatura e umidade está desligada por não ter sido validada.
-- Os limites do índice são valores iniciais e precisam de calibração experimental no local.
+- Sofre deriva e envelhecimento: a tensão em ar limpo muda com o tempo, e os limites em volts
+  precisam ser revistos periodicamente (doc 04).
+- Não há compensação de temperatura e umidade.
+- Os limites de tensão foram definidos na bancada e precisam de ajuste experimental no local.
+- Com `MQ135_FLOOR_IS_FAULT = false` (bancada), um fio do AO solto **não é detectado** (doc 01 §4.2).
 - O aquecedor consome ~0,8 W de forma contínua. Não é adequado para alimentação por bateria.
 
 ## Hardware ainda não confirmado
 
-- Relé alimentado em 3,3 V (provável problema com um módulo de 5 V), ligação do divisor do
-  MQ-135 (série ou paralelo), volume do buzzer ativo ligado direto no GPIO, RL do módulo
-  MQ-135, homologação ANATEL do RYLR998, capacidade do regulador 3,3 V (ver
-  `docs/01_hardware.md` §6).
+- Relé ainda não ligado nem testado, volume do buzzer ativo ligado direto no GPIO, homologação
+  ANATEL do RYLR998, consumo total (ver `docs/01_hardware.md` §6).
 - O LED verde depende do contato NC do relé: ele indica "relé desligado", não "firmware
   rodando".
-- O firmware **compila** com o toolchain real (`pio run`, variantes DHT22 e AHT20), mas **ainda
-  não foi executado em hardware**. Os 23 testes experimentais estão pendentes.
+- O nó roda na bancada (OLED, DHT11, MQ-135, LEDs, buzzer e RYLR998 com o receptor), mas os 23
+  testes experimentais formais ainda estão pendentes.
 
 ## Comunicação
 
@@ -53,15 +53,15 @@
 ## Firmware
 
 - O envio de um quadro ao OLED leva ~23 ms bloqueantes (biblioteca Adafruit) e a leitura do
-  AHT20 ~80 ms. Ambos são compatíveis com o watchdog de 8 s e com os tempos dos alertas, mas não
+  DHT11 ~25 ms. Ambos são compatíveis com o watchdog de 8 s e com os tempos dos alertas, mas não
   são "zero bloqueio".
 - Não há listen-before-talk (o RYLR998 não o expõe por AT). Escrever um `AT+SEND` de 240 B na
   UART leva ~22 ms.
-- A biblioteca DHT desliga as interrupções por ~4 ms durante a leitura (a cada 2,5 s). Se um
+- O driver do DHT11 desliga as interrupções por até ~8,5 ms durante a leitura (a cada 2,5 s). Se um
   `+RCV` chegar nesse instante, bytes podem se perder na UART. O quadro é descartado como
   malformado e o remetente retransmite por falta de ACK.
 - A falha do display só é detectada por ausência de resposta I2C (verificação a cada 5 s).
 - O console serial é local e não autenticado. Quem tem acesso físico à USB controla as
   simulações. Desabilite ou proteja em produção.
-- Gravações em flash (calibração, entrada/saída de HIGH, boot) pausam brevemente os dois núcleos.
+- Gravações em flash (entrada/saída de HIGH, boot) pausam brevemente o processador.
   A frequência é baixa, o que limita o desgaste.

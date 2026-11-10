@@ -3,10 +3,10 @@
 ## 1. Configuração do rádio: REYAX RYLR998 (`src/config/config.h`)
 
 O RYLR998 tem um SX1262 e um microcontrolador próprio, e é controlado por **comandos AT pela
-UART** (115200 baud, `Serial1` em GP0/GP1). A cada boot e a cada recuperação de falha, o
+UART** (115200 baud, `Serial2` do ESP32 em GPIO17/GPIO16). A cada boot e a cada recuperação de falha, o
 firmware faz:
 
-1. **Reset por hardware:** NRST (GP2) em nível baixo por 100 ms, depois espera `+READY` (até 3 s).
+1. **Reset por hardware:** NRST (GPIO4) em nível baixo por 100 ms, depois espera `+READY` (até 3 s).
 2. **Configuração**, um comando por vez, cada um aguardando `+OK`:
 
 | Comando enviado | Valor | Justificativa |
@@ -96,9 +96,9 @@ Exemplo real gerado pelo codificador do firmware (239 bytes):
 | `category` | string | `AIR_QUALITY`, `TEMPERATURE`, `HUMIDITY`, `SYSTEM` |
 | `severity` | string | `LOW`, `MEDIUM`, `HIGH` |
 | `prev` | string | Severidade anterior (opcional, omitido se não couber) |
-| `sensor` | string | `MQ135`, `DHT22`/`AHT20`, `SYSTEM` |
+| `sensor` | string | `MQ135`, `DHT11`, `SYSTEM` |
 | `raw_adc` | uint | Leitura ADC (0–4095) do MQ-135 |
-| `air_index` | uint | **Índice relativo 0–100** calibrado contra o ar limpo (R0). **Não é concentração química.** Omitido durante o aquecimento ou sem calibração. |
+| `air_index` | uint | Tensão do AO do MQ-135 usada pelo alarme, em **% de 5 V** (0–100; `V = air_index / 20`). Resposta relativa: **não é concentração química.** Omitido durante o aquecimento ou com o sensor em falha. |
 | `temperature` | float | °C, 1 casa decimal. Omitido se a leitura for inválida. |
 | `humidity` | float | %UR, inteiro. Omitido se a leitura for inválida. |
 | `heat_index` | float | °C (só em eventos de TEMPERATURE, se couber) |
@@ -127,7 +127,7 @@ categoria volta ao normal depois da histerese temporal de recuperação.
 |---|---|---|---|
 | 0 | 1 | Falha do sensor de temperatura/umidade | MEDIUM |
 | 1 | 2 | Falha de leitura do MQ-135 | MEDIUM |
-| 2 | 4 | MQ-135 sem calibração (após o aquecimento) | LOW |
+| 2 | 4 | *(não usado; era "MQ-135 sem calibração R0", modo removido)* | — |
 | 3 | 8 | Falha do rádio LoRa (só pode ser enviada depois que o rádio voltar) | LOW |
 | 4 | 16 | Alertas sem ACK (falha de entrega) | LOW |
 | 5 | 32 | Falha do display | LOW |

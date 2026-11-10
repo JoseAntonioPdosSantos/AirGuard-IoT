@@ -2,8 +2,9 @@
 
 O plano tem dois níveis:
 
-1. **Testes unitários automatizados** no PC, sem hardware: `make -C tests`. São 88 testes
-   compilados com AddressSanitizer e UndefinedBehaviorSanitizer.
+1. **Testes unitários automatizados** no PC, sem hardware: `make -C tests` (84 testes do nó) e
+   `make -C receiver/tests` (12 do receptor), compilados com AddressSanitizer e
+   UndefinedBehaviorSanitizer.
 2. **Testes experimentais** na placa, com os 23 cenários da especificação. Eles usam o **console
    serial** (`pio device monitor`, 115200) para simular sensores e rádio sem depender de gases
    reais.
@@ -12,18 +13,18 @@ O plano tem dois níveis:
 
 | Área | Arquivo | O que cobre |
 |---|---|---|
-| Classificação e histerese | `test_severity.cpp` | níveis do ar, histerese de valor, temperatura nos dois lados, umidade, NaN não classificado, persistência (pico ignorado, oscilação, recuperação interrompida, recuperação parcial), **wrap-around de `millis()`**, índice de calor vs. NWS |
-| Motor de alertas | `test_alert_manager.cpp` | normal sem eventos, HIGH aciona o relé, **MEDIUM→HIGH gera escalonamento imediato**, RECOVERY após estabilidade, **oscilação não gera tempestade**, leitura inválida mantém o estado, flags SYSTEM, lembretes, **restauração após reboot**, unicidade de `event_id` |
+| Classificação e histerese | `test_severity.cpp` | níveis, histerese de valor, temperatura nos dois lados, umidade, NaN não classificado, persistência (pico ignorado, oscilação, recuperação interrompida, recuperação parcial), **wrap-around de `millis()`**, índice de calor vs. NWS |
+| Motor de alertas | `test_alert_manager.cpp` | normal sem eventos, HIGH aciona o relé, **MEDIUM→HIGH gera escalonamento imediato**, RECOVERY após estabilidade, **oscilação não gera tempestade**, leitura inválida mantém o estado, flags SYSTEM, lembretes, **restauração após reboot**, unicidade de `event_id`, limites de gás em volts |
 | Entrega / ACK | `test_ack_manager.cpp` | ACK entregue, **timeout de 60 s retransmite o mesmo id**, desiste após o máximo, intervalo mínimo entre TX, prioridade, substituição por categoria, canal ocupado, fila cheia, payload grande demais, deduplicação |
 | Protocolo | `test_protocol.cpp` | campos da especificação, pior caso ≤ 240 B, overflow, ACK, parse do TEXT da especificação, escapes Unicode, rejeição de entradas malformadas, aninhadas, longas e com tipo errado, lista de remetentes |
 | Rádio RYLR998 | `test_rylr998.cpp` | `+RCV` com JSON (vírgulas no dado), CR/LF dentro do dado, exemplo do guia com espaços, lixo e limites, `AT+SEND` (≤ 240 B, sem CR/LF), `+ERR`, tempo no ar |
-| Sensores e display | `test_sensors_display.cpp` | cadeia de tensão/Rs, índice, aquecimento, falha (circuito aberto/saturação), mediana, calibração (sucesso/instável/recusada), simulação, falha do ambiente, padrões do buzzer, transliteração/quebra de texto, **mensagem exatamente 3 s**, paginação, **mensagem não esconde HIGH**, prioridade de tela |
+| Sensores e display | `test_sensors_display.cpp` | cadeia de tensão do MQ-135, `air_index` do rádio, aquecimento, subida imediata, falha (circuito aberto, limpeza só após amostras boas), pino saturado não é falha, limites em volts, simulação, falha do ambiente, padrões do buzzer, transliteração/quebra de texto, **mensagem exatamente 3 s**, paginação, **mensagem não esconde HIGH**, prioridade de tela |
 
 ## 2. Preparação dos testes experimentais
 
 - Monte o hardware conforme `docs/01_hardware.md`, com o gateway (segundo dispositivo) na mesma
   configuração de rádio. Sem gateway, use `sim ack <id>` e `sim text <msg>`.
-- Para acelerar a bancada: `warmup skip` (só em teste) e `r0 <valor>` (ou `cal start` em ar limpo).
+- Para acelerar a bancada: `warmup skip` (só em teste; `DEV_SKIP_MQ135_WARMUP = true` já faz isso a cada boot).
 - `log debug` mostra os payloads enviados. `status` e `stats` mostram o estado e os contadores.
 - Registre para cada teste: data, firmware (`v1.0.0`), condições (T/UR), resultado e trecho do log.
 
@@ -31,12 +32,12 @@ O plano tem dois níveis:
 
 | # | Cenário | Procedimento | Resultado esperado / critério |
 |---|---|---|---|
-| 1 | Inicialização | Energizar e observar o log e o OLED | Relé desligado desde o 1º instante; bipe curto; tela de boot de 3 s com nome e slogan; log `BOOT` com versão, boot #, R0; `SSD1306 ok`; após ~1 s, `RYLR998 ok: 915000000 Hz SF8 ...`; LED verde aceso; LED amarelo piscando devagar durante o aquecimento |
-| 2 | Aquecimento e estabilização do MQ-135 | Energizar com sensor já com burn-in e registrar `Rs` (STAT, 10 s) por 30 min | OLED `WARMUP mm:ss` por 5 min; nenhum alerta AIR durante o aquecimento. **Medir** o tempo até Rs variar < 2 %/min e ajustar `MQ135_WARMUP_MS` |
-| 3 | Ambiente normal | Calibrado e em ar limpo, 22–25 °C, 40–55 %UR, observar 10 min | Tela principal `NORMAL`/`MONITORING`; LED verde aceso, amarelo e vermelho apagados; buzzer e relé desligados; nenhum TX |
-| 4 | Alteração inicial do ar | *(modo tensão: não há LOW para gás)* | ALERT AIR_QUALITY LOW só no modo Rs/R0; 2 bipes/30 s; tela de alerta fixa; LED amarelo aceso; relé desligado |
-| 5 | Alteração média do ar | `sim air 19` (0,95 V) | Imediato: ALERT MEDIUM (`prev` LOW); 3 bipes/5 s; severidade piscando; LED amarelo piscando; relé desligado |
-| 6 | Alteração crítica do ar | `sim air 35` (1,75 V) | Imediato: ALERT HIGH, **transmitido antes de qualquer outra mensagem pendente** (o MEDIUM sem ACK é substituído); buzzer contínuo/urgente; tela inteira piscando; **relé energizado; LED verde apagado** (contato NC aberto); LED vermelho piscando |
+| 1 | Inicialização | Energizar e observar o log e o OLED | Relé desligado desde o 1º instante; bipe curto; tela de boot de 3 s com nome e slogan; log `BOOT` com versão, boot # e limites do gás; `SSD1306 ok`; após ~1 s, `RYLR998 ok: 915000000 Hz SF8 ...`; LED verde aceso; LED amarelo piscando devagar durante o aquecimento |
+| 2 | Aquecimento e estabilização do MQ-135 | Com `DEV_SKIP_MQ135_WARMUP = false`, energizar com sensor já com burn-in e registrar `Vao` (STAT, 10 s) por 30 min | OLED `WARMING UP` por 5 min; nenhum alerta AIR durante o aquecimento. **Medir** o tempo até `Vao` estabilizar e ajustar `MQ135_WARMUP_MS` |
+| 3 | Ambiente normal | Aquecido e em ar limpo, 22–25 °C, 40–55 %UR, observar 10 min | Tela principal `NORMAL`/`MONITORING`; LED verde aceso, amarelo e vermelho apagados; buzzer e relé desligados; nenhum TX |
+| 4 | Alteração inicial do ar | *(não há LOW para gás com os limites atuais)* | Só se `GAS_VOLTS` ganhar um LOW (doc 04 §4): ALERT AIR_QUALITY LOW; 2 bipes/30 s; tela de alerta fixa; LED amarelo aceso; relé desligado |
+| 5 | Alteração média do ar | `sim air 1.0` | Imediato: ALERT MEDIUM (`prev` NORMAL); 3 bipes/5 s; severidade piscando; LED amarelo piscando; relé desligado |
+| 6 | Alteração crítica do ar | `sim air 1.8` | Imediato: ALERT HIGH, **transmitido antes de qualquer outra mensagem pendente** (o MEDIUM sem ACK é substituído); buzzer contínuo/urgente; tela inteira piscando; **relé energizado; LED verde apagado** (contato NC aberto); LED vermelho piscando |
 | 7 | Temperatura acima da atenção | `sim temp 28` e `sim hum 50` | Após 10 s: ALERT TEMPERATURE LOW (aparente ≥ 26,7 °C). `sim temp 33` → MEDIUM |
 | 8 | Temperatura acima do crítico | `sim temp 41` | Após 10 s: ALERT TEMPERATURE HIGH; relé energizado; tela mostra `Temp` e `Feels` |
 | 9 | Umidade abaixo da faixa | `sim temp 22`, `sim hum 28` | Após 30 s: ALERT HUMIDITY LOW; `sim hum 18` → HIGH. Fisicamente, o DHT11 não mede < 20 %UR (doc 05), então só a simulação cobre MEDIUM/HIGH baixos |
@@ -51,8 +52,8 @@ O plano tem dois níveis:
 | 18 | Perda temporária do LoRa | `sim lorafail`, ou desconectar o TXD do RYLR998 (o `AT` de saúde falha em ≤ 60 s) | Log `RYLR998 fault`; OLED `LoRa: FAULT`/`NO RADIO`; **sensores, alertas, buzzer e relé continuam**; após 30 s o rádio é reinicializado e a fila retoma |
 | 19 | Falha do sensor de temperatura | `sim envfail on` (ou desconectar DATA) | Após 3 leituras: `ENV FAULT`; ALERT SYSTEM MEDIUM (flags 1); OLED `--.-`/`SENSOR FAULT`; o nível de TEMP/HUM **não volta a NORMAL**. `sim envfail off` → recupera |
 | 20 | Falha de leitura do MQ-135 | `sim airfail on` (ou desconectar AO → ADC ≈ 0) | Após 5 s: `MQ-135 FAULT`; ALERT SYSTEM MEDIUM (flags 2); nível AIR mantido |
-| 21 | Ativação e desativação do relé | Teste 6 e depois `sim air 5` | Relé liga no HIGH (medir na saída do módulo / LED do relé); desliga **60 s** após o índice ficar abaixo de HIGH − histerese; contador em `stats`/log `RELAY` |
-| 22 | Recuperação da condição crítica | `sim air 60`, aguardar o HIGH, depois `sim air 3` | Após 60 s estáveis: **RECOVERY** AIR_QUALITY (`prev` HIGH) com ACK; buzzer para; relé liberado e LED verde aceso; LEDs amarelo/vermelho apagados; tela principal |
+| 21 | Ativação e desativação do relé | Teste 6 e depois `sim air 0.3` | Relé liga no HIGH (medir na saída do módulo / LED do relé); desliga após `AIR_RECOVER_MS` (0 na bancada; ~60 s em uso real) com a tensão abaixo de HIGH − histerese; log `RELAY` |
+| 22 | Recuperação da condição crítica | `sim air 3`, aguardar o HIGH, depois `sim air 0.2` | Após `AIR_RECOVER_MS` estável: **RECOVERY** AIR_QUALITY (`prev` HIGH) com ACK; buzzer para; relé liberado e LED verde aceso; LEDs amarelo/vermelho apagados; tela principal |
 | 23 | Reinicialização durante alerta | Em HIGH (teste 6), digitar `reboot` (ou cortar a energia) | No boot: log `restored HIGH state`; relé e buzzer reativados; ALERT `note: RESTORED` enviado; com `sim air` desligado e o sensor em ar limpo, a recuperação só ocorre **após o aquecimento + 60 s** |
 
 Para todos os cenários, após o teste, use `sim off` e verifique o retorno ao normal.
@@ -61,6 +62,6 @@ Para todos os cenários, após o teste, use `sim off` e verifique o retorno ao n
 
 - **Alcance:** RSSI/SNR no log do gateway a 5, 10 e 20 m e através de 1 e 2 paredes.
 - **Robustez:** 24 h de operação contínua; `stats` sem `dropped` e sem reboot por watchdog.
-- **Tempestade:** `sim air` oscilando entre 14 e 16 a cada 2 s por 10 min deve gerar no máximo
-  1 evento (histerese).
+- **Tempestade:** `sim air` oscilando entre 0.88 e 0.92 a cada 2 s por 10 min deve gerar no
+  máximo 1 evento (histerese de 0,05 V).
 - **Consumo:** medir a corrente no 5 V em NORMAL e em HIGH com TX (comparar com doc 01 §5).

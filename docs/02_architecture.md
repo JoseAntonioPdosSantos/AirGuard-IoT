@@ -22,16 +22,19 @@ src/
 ├── main.cpp                      setup()/loop() → AirGuardApp
 ├── app/
 │   ├── airguard_app.h/.cpp       orquestração das tarefas (única camada que "conhece" todos)
-│   └── console_commands.cpp      console serial: calibração, diagnóstico, simulação
+│   └── console_commands.cpp      console serial: diagnóstico, testes de bancada, simulação
 ├── config/
 │   ├── config.h                  identidade, tempos, rádio, políticas (relé, buzzer, ACK)
-│   ├── thresholds.h              limites ambientais + constantes de calibração do MQ-135
-│   └── hardware_pins.h           mapa de GPIO
+│   ├── thresholds.h              limites dos alarmes + circuito e filtro do MQ-135
+│   └── hardware_pins.h           mapa de GPIO do ESP32
+├── platform/
+│   └── board.h                   única camada com chamadas do ESP-IDF (watchdog, UART, ADC, I2C)
 ├── sensors/                      [HW] acesso cru ao hardware
 │   ├── mq135_sensor              ADC com sobreamostragem
-│   └── temperature_sensor        DHT11 (padrão), DHT22 ou AHT20 (seleção por build flag)
+│   ├── temperature_sensor        driver DHT11 próprio (timeout por borda)
+│   └── dht_codec                 [PURO] decodificação do quadro do DHT11
 ├── monitoring/                   [PURO] decisão
-│   ├── air_quality_monitor       ADC→V→Rs→mediana+EMA→Rs/R0→air_index, aquecimento, calibração
+│   ├── air_quality_monitor       ADC→V(pino)→V(AO)→filtro→tensão do alarme, aquecimento, falha
 │   ├── environment_monitor       validação T/UR, detecção de falha, índice de calor
 │   ├── severity_logic            classificador com histerese + rastreador de persistência
 │   ├── alert_manager             nível confirmado por categoria, eventos, lembretes, relé
@@ -51,7 +54,7 @@ src/
 │   └── led_manager               [HW] LEDs vermelho e amarelo (o verde é ligado pelo contato NC do relé)
 └── utils/
     ├── logger                    [HW] log serial com nível, sem bloqueio
-    ├── persistent_store          [HW] flash (EEPROM emulada): boot count, R0, máscara HIGH
+    ├── persistent_store          [HW] flash (EEPROM emulada): boot count, máscara HIGH
     └── text_utils                [PURO] UTF-8 → ASCII (acentos PT-BR), quebra de linha
 ```
 
@@ -62,7 +65,7 @@ src/
 ```
  MQ-135 ─► Mq135Sensor ─► AirQualityMonitor ─┐
                                              ├─► AlertManager ─► AlertEvent ─► message_protocol ─► AckManager ─► LoraManager ─► ar
- DHT22 ──► TemperatureSensor ─► EnvironmentMonitor ┘      │                                          ▲   │
+ DHT11 ──► TemperatureSensor ─► EnvironmentMonitor ┘      │                                          ▲   │
                                                           │                                          │   ▼
                          estado confirmado por categoria  │                    ACK ◄── parser ◄──── RX LoRa
                                                           ▼                                  │
@@ -74,14 +77,14 @@ src/
 
 | Ordem | Tarefa | Período | Custo máximo |
 |---|---|---|---|
-| 0 | `rp2040.wdt_reset()` | toda iteração | — |
+| 0 | `board::watchdogFeed()` | toda iteração | — |
 | 1 | Console serial | toda iteração (≤ 64 caracteres) | µs |
 | 2 | Sensores: MQ-135 | 200 ms | ~30 µs (16 conversões ADC) |
-| 2 | Sensores: DHT11 / DHT22 / AHT20 | 2,5 s | ~25 ms (DHTxx: 20 ms de sinal de início + leitura) / ~80 ms (AHT20) |
+| 2 | Sensores: DHT11 | 2,5 s | ~25 ms (20 ms de sinal de início + leitura) |
 | 3 | Alertas (classificação, eventos, flags de sistema) | toda iteração | µs |
 | 4 | Rádio (UART, RX, TX, fila, retransmissão) | toda iteração | ~22 ms para escrever um `AT+SEND` de 240 B a 115200 baud |
 | 5 | Saídas (buzzer, relé, LED) | toda iteração | µs |
-| 6 | Display | 250 ms | ~23 ms quando o quadro muda, e a cada 2 s de qualquer forma (repara quadro corrompido no I2C) |
+| 6 | Display | 50 ms (texto rolando) | ~23 ms quando o quadro muda, e a cada 2 s de qualquer forma (repara quadro corrompido no I2C) |
 | 7 | Log de status | 10 s | < 1 ms (descarta a linha se a USB estiver cheia) |
 
 O watchdog é de 8 s, e o pior caso de uma iteração fica abaixo de 150 ms.
@@ -98,7 +101,7 @@ O watchdog é de 8 s, e o pior caso de uma iteração fica abaixo de 150 ms.
 
 | Categoria | Subida (escalate) | Recuperação (recover) | Histerese de valor |
 |---|---|---|---|
-| AIR_QUALITY | imediato | imediato (bancada; configurável) | 5 pontos de índice (modo tensão: 0,3 V) |
+| AIR_QUALITY | imediato | imediato (bancada; configurável) | 0,05 V |
 | TEMPERATURE | 10 s | 60 s | 1,0 °C |
 | HUMIDITY | 30 s | 120 s | 3 %UR |
 | SYSTEM | imediato (flags) | imediato | — |
@@ -141,7 +144,6 @@ Os dados ficam em flash (EEPROM emulada, 256 bytes, CRC32):
 
 - **contador de boot**, que forma `event_id = (boot << 16) | sequência`. Assim os IDs não se
   repetem entre reinicializações e o gateway deduplica com segurança.
-- **R0** calibrado.
 - **máscara HIGH**: as categorias que estavam em HIGH. A flash só é gravada ao entrar ou sair
   de HIGH, para limitar o desgaste.
 
@@ -154,11 +156,10 @@ recuperação, incluindo o aquecimento do MQ-135.
 
 | Biblioteca | Uso | Por que esta |
 |---|---|---|
-| **Arduino-Pico (Earle Philhower)** | core RP2040 | Suporte completo ao RP2040: EEPROM emulada, `rp2040.wdt_*`, `hwrand32`, mux de pinos SPI/I2C. É mantido ativamente. O core Mbed oficial não tem watchdog nem EEPROM com essa API. |
+| **Arduino-ESP32 2.0.17** (`espressif32 @ ^6.9.0`) | core ESP32 | Core oficial da Espressif. Watchdog por `esp_task_wdt`, ADC calibrado (`analogReadMilliVolts`), EEPROM emulada. As chamadas específicas ficam só em `src/platform/board.h`. |
 | *(nenhuma para o LoRa)* | RYLR998 | O módulo é controlado por comandos AT simples. Um driver próprio, não bloqueante e com o parser testado no PC (`rylr998_codec`), evita depender de bibliotecas de terceiros que costumam usar `delay()` e esperar respostas de forma bloqueante. |
 | **Adafruit SSD1306 + GFX** | OLED | Padrão de mercado, fonte 5×7, buffer acessível (necessário para enviar só quando muda). |
-| *(nenhuma para o DHT)* | DHT11 / DHT22 | Driver próprio (`temperature_sensor.cpp` + `dht_codec`, testado no PC). A biblioteca da Adafruit foi removida porque, com a linha de dados instável, deixa as interrupções desligadas por segundos; no ESP32 isso dispara o watchdog de interrupção (reboot em loop observado na bancada). Cada borda agora tem timeout de 100 µs: no máximo ~8,5 ms sem interrupções. |
-| **Adafruit AHTX0** | AHT20 (opcional) | Driver oficial do fabricante do módulo mais comum. |
+| *(nenhuma para o DHT)* | DHT11 | Driver próprio (`temperature_sensor.cpp` + `dht_codec`, testado no PC). A biblioteca da Adafruit foi removida porque, com a linha de dados instável, deixa as interrupções desligadas por segundos; no ESP32 isso dispara o watchdog de interrupção (reboot em loop observado na bancada). Cada borda agora tem timeout de 100 µs: no máximo ~8,5 ms sem interrupções. |
 
 Não é usada nenhuma biblioteca JSON: o parser próprio é limitado, não aloca memória, rejeita
 aninhamento e é testado contra entradas malformadas. ArduinoJson funcionaria, mas aceitaria

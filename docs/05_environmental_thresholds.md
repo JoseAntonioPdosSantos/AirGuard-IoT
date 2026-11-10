@@ -37,21 +37,10 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 | HUMIDITY_CRITICAL (baixa) | UR ≤ 20 % | HIGH | **protótipo** |
 | Histerese | 3 %UR | — | escolha de projeto; o DHT11 tem resolução de 1 % e exatidão de ±5 % |
 
-### Qualidade do ar (índice relativo)
+### Gás: tensão do AO do MQ-135 (`thr::GAS_VOLTS`)
 
-| Faixa de `air_index` | Severidade | Observação |
-|---|---|---|
-| < 15 | NORMAL | |
-| ≥ 15 | LOW | **valor inicial**, a calibrar (doc 04 §5) |
-| ≥ 30 | MEDIUM | **valor inicial**, a calibrar |
-| ≥ 50 | HIGH | **valor inicial**, a calibrar |
-| histerese | 5 pontos | |
-
-### Qualidade do ar pela tensão do AO (modo ativo no ESP32)
-
-Com `cfg::AIR_ALERT_BY_VOLTAGE = true` (padrão atual), o alarme usa a **tensão na saída AO do
-MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O índice passa a ser
-`air_index = 100 × V(AO) / 5 V`, ou seja, a tensão do AO em porcentagem de 5 V.
+O alarme usa a **tensão na saída AO do MQ-135** (0–5 V, com o divisor desfeito; filtro no doc 04).
+No rádio ela vai como `air_index = 100 × V(AO) / 5 V` (a tensão em porcentagem de 5 V).
 
 | Tensão no AO | `air_index` | Severidade |
 |---|---|---|
@@ -60,12 +49,13 @@ MQ-135** (0–5 V, filtrada por mediana + média móvel), sem precisar do R0. O 
 | ≥ 1,5 V | ≥ 30 | HIGH |
 | histerese | 0,05 V (1 ponto) | |
 
-Valores definidos pela bancada: ar limpo ~0,2–0,6 V (com 0,30 V o MEDIUM disparava sozinho, por isso subiu para 0,90 V); o HIGH subiu de 1,0 V para 1,5 V para que a faixa MEDIUM (0,90–1,5 V) sirva de aviso antecipado; isqueiro perto do sensor leva o AO a quase
-5 V. Ajuste `AO_LOW_V`, `AO_MEDIUM_V` e `AO_HIGH_V` em `thresholds.h` após observar a cozinha real.
-A tensão do AO depende do sensor, do resistor de carga do módulo e da temperatura/umidade; por isso
-os limites valem para **este** módulo e precisam ser revistos se ele for trocado. O aquecimento de
-5 min continua obrigatório: o sensor frio dá tensões altas. Com `false`, volta o modo por Rs/R0
-(tabela acima), que exige `cal start`.
+Valores definidos pela bancada: ar limpo ~0,2–0,6 V (com 0,30 V o MEDIUM disparava sozinho, por
+isso subiu para 0,90 V); o HIGH subiu de 1,0 V para 1,5 V para que a faixa MEDIUM (0,90–1,5 V)
+sirva de aviso antecipado; isqueiro perto do sensor leva o AO a quase 5 V. Ajuste
+`thr::GAS_VOLTS` em `thresholds.h` após observar a cozinha real (doc 04 §4). A tensão do AO
+depende do sensor, do resistor de carga do módulo e da temperatura/umidade; por isso os limites
+valem para **este** módulo e precisam ser revistos se ele for trocado. O aquecimento de 5 min
+continua obrigatório em uso real: o sensor frio dá tensões altas.
 
 ### Persistência temporal (histerese no tempo)
 
@@ -85,7 +75,8 @@ subir de nível.
   Abaixo de 20 %, o DHT11 não informa um valor válido.
 - Com exatidão de ±2 °C, uma leitura de 26 °C pode ser 24–28 °C. A classificação é de
   **atenção**, não um diagnóstico.
-- Para limites mais finos, use DHT22 ou AHT20 (`pio run -e rp2040zero_dht22` / `rp2040zero_aht20`).
+- Para limites mais finos seria preciso um sensor melhor (ex.: DHT22 ou AHT20). O suporte a eles
+  foi retirado do firmware para simplificar; a versão anterior está na branch `esp32-devkit`.
 
 ## 2. Índice de calor
 

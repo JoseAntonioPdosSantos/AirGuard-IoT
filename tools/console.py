@@ -3,7 +3,7 @@
 
     ~/.platformio/penv/bin/python tools/console.py status
     ~/.platformio/penv/bin/python tools/console.py diag --wait 8
-    ~/.platformio/penv/bin/python tools/console.py "sim air 60" --port /dev/ttyUSB0
+    ~/.platformio/penv/bin/python tools/console.py "sim air 1.8" --port /dev/ttyUSB0
 
 The port is opened WITHOUT pulsing reset (DTR/RTS untouched), so the board keeps
 running. Duplicate lines are dropped (some USB-serial bridges repeat data when

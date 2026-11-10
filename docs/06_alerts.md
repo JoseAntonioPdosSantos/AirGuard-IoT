@@ -23,9 +23,8 @@ SYSTEM.
   o relé energiza. Com `RELAY_ON_MEDIUM = true`, isso também acontece em MEDIUM.
 - O buzzer é uma máquina de estados baseada em tempo, sem `delay()`. Uma nova severidade
   reinicia o padrão imediatamente.
-- Problemas de **SYSTEM** também acionam o buzzer conforme a severidade deles. Por exemplo, um
-  MQ-135 **sem calibração** após o aquecimento, ou rádio/display em falha, gera LOW (2 bipes a
-  cada 30 s) até ser resolvido. Falha de sensor gera MEDIUM. Isso é intencional, para que um
+- Problemas de **SYSTEM** também acionam o buzzer conforme a severidade deles. Por exemplo,
+  rádio ou display em falha geram LOW (2 bipes a cada 30 s) até serem resolvidos. Falha de sensor gera MEDIUM. Isso é intencional, para que um
   nó que não está medindo de fato não pareça "normal".
 
 ## 2. Telas do OLED (0,96" SSD1306 128×64 amarelo/azul, fonte 5×7, 21 colunas)
@@ -55,12 +54,12 @@ cor só.
 ├ azul ────────────────────┤
 │ ◄ Temp 25.4 C | Hum 61 % | Gas 0.23 V   (2×, rolando)
 │                          │
-│ AO 0.23V  index 5        │  ← linha mantida
-│ LoRa: OK                 │  ← linha mantida
+│ MQ135 AO: 0.23 V         │
+│ LoRa: OK                 │
 └──────────────────────────┘
 ```
 - A faixa do meio rola continuamente da direita para a esquerda, em fonte 2× (40 px/s,
-  `DISPLAY_TICKER_PX_PER_S`). Com `SENSOR FAULT`, `WARMING UP` ou `CAL nn%`, esse estado aparece no
+  `DISPLAY_TICKER_PX_PER_S`). Com `SENSOR FAULT` ou `WARMING UP`, esse estado aparece no
   início da faixa.
 - A linha `AO` mostra a tensão na saída AO do MQ-135 (0–5 V, o divisor já descontado), em todos os
   estados, para conferir a ligação sem o console.
@@ -73,13 +72,13 @@ cor só.
 ├ azul ────────────────────┤
 │ ◄ ALERT AIR_QUALITY | Temp 25.4 C | Hum 61 % | Gas 3.10 V   (2×, rolando)
 │                          │
-│ +HUM:LOW                 │  ← linha mantida (outras categorias ativas)
-│ Rly:ON  LoRa:WAIT ACK    │  ← linha mantida
+│ +HUM:LOW                 │  ← outras categorias ativas
+│ Rly:ON  LoRa:WAIT ACK    │
 └──────────────────────────┘
 ```
 Ao voltar à normalidade, a faixa amarela volta a mostrar o nome do aplicativo.
 - A tela mostra a severidade (em destaque na faixa amarela), a categoria mais grave, os valores
-  relacionados (índice; temperatura e sensação térmica; umidade e temperatura; ou o problema de
+  relacionados (tensão do gás; temperatura e sensação térmica; umidade e temperatura; ou o problema de
   sistema), as demais categorias ativas e o estado do relé e da entrega LoRa (`SENDING`,
   `WAIT ACK`, `ACK OK`, `NO ACK`, `NO RADIO`).
 
