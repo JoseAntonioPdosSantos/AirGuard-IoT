@@ -16,7 +16,8 @@ SRC_CORE := ../src/monitoring/severity_logic.cpp \
             ../src/actuators/buzzer_pattern.cpp \
             ../src/display/screen_logic.cpp \
             ../src/utils/text_utils.cpp \
-            ../src/sensors/dht_codec.cpp
+            ../src/sensors/dht_codec.cpp \
+            ../src/net/uplink_queue.cpp
 
 SRC_TEST := $(wildcard unit/*.cpp)
 BIN      := build/unit_tests

@@ -94,9 +94,19 @@ Se o upload não funcionar (picotool sem permissão), segure **BOOT**, aperte **
 
 ## Telemetria para o AirGuard Web
 
-Cada quadro recebido (com RSSI, SNR e o que o receptor fez com ele), cada ACK enviado e um resumo a
-cada 10 s saem na USB como linhas `@T {...}`, no meio do log. A ponte
-`AirGuard-Web/bridge/serial_bridge.py` as envia ao painel **Ambiente**. Formato: [docs/11_telemetry.md](../docs/11_telemetry.md).
+O receptor **não grava log de telemetria**: ele não tem rede. Ele informa o sensor pelo próprio LoRa,
+e o ESP32 repassa ao AirGuard Web pelo Wi-Fi:
+
+- cada **ACK** leva o RSSI/SNR com que o receptor ouviu o alerta;
+- um quadro **STAT**, 250 ms depois de um heartbeat e no máximo a cada 15 s (a cada 30 s se nenhum
+  heartbeat chegar), traz:
+  - quais dos últimos 32 heartbeats ele ouviu;
+  - os contadores (heartbeats, perdidos, eventos, repetidos, inválidos);
+  - o último RSSI/SNR;
+  - o estado do LCD e do rádio, e o tempo ligado.
+
+Formato: [docs/11_telemetry.md](../docs/11_telemetry.md). O log de texto na USB (`[RX]`, `[ACK]`,
+`[STAT]`) continua para diagnóstico.
 
 ## Configuração (`receiver/src/rx_config.h`)
 

@@ -58,4 +58,19 @@ Led ReceiverState::led(uint32_t now, uint32_t timeoutMs) const {
   }
 }
 
+void HbTracker::onHeartbeat(uint32_t seq) {
+  if (any_ && seq == last_) return;  // same frame twice
+  ++received_;
+  if (!any_ || seq < last_) {        // first one, or the node rebooted
+    any_ = true;
+    last_ = seq;
+    map_ = 1;
+    return;
+  }
+  const uint32_t gap = seq - last_;
+  if (gap - 1 < 100000) missed_ += gap - 1;
+  map_ = gap >= 32 ? 1 : ((map_ << gap) | 1);
+  last_ = seq;
+}
+
 }  // namespace rx

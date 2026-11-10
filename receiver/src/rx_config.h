@@ -30,7 +30,8 @@ constexpr uint8_t  LORA_BW_CODE      = 7;
 constexpr uint8_t  LORA_CR_CODE      = 1;
 constexpr uint8_t  LORA_PREAMBLE     = 12;
 constexpr uint8_t  LORA_NETWORK_ID   = 6;
-constexpr uint16_t LORA_ADDRESS      = 1;   // this receiver (node is 101)
+constexpr uint16_t LORA_ADDRESS      = 1;   // this receiver
+constexpr uint16_t NODE_LORA_ADDRESS = 101; // the node (STAT before any frame was heard)
 constexpr int8_t   LORA_TX_POWER_DBM = 14;
 constexpr const char* LORA_CPIN      = "";  // same as the node ("" = not set)
 
@@ -46,5 +47,12 @@ constexpr uint32_t WAIT_BLINK_MS        = 500;   // green blink before the first
 constexpr uint32_t WATCHDOG_MS          = 8000;
 // The node sends a heartbeat every 5 s: nothing for 15 s (3 missed) = lost signal.
 constexpr uint32_t LINK_TIMEOUT_MS      = 15000;
+// Receiver status (STAT frame) for the node, which forwards it to AirGuard Web:
+// sent STAT_DELAY_MS after a heartbeat (the node has just finished transmitting
+// and is listening), at most every STAT_PERIOD_MS; every STAT_IDLE_MS when no
+// heartbeat arrives (it then reports lost=1).
+constexpr uint32_t STAT_PERIOD_MS = 15000;
+constexpr uint32_t STAT_DELAY_MS  = 250;
+constexpr uint32_t STAT_IDLE_MS   = 30000;
 
 }  // namespace rxcfg

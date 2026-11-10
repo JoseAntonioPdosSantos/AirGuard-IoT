@@ -286,7 +286,8 @@ ParseError parseString(Cur& c, char* out, size_t cap) {
 }
 
 // Parses a number; sets isUInt/value when it is a non-negative integer that fits.
-ParseError parseNumber(Cur& c, bool& isUInt, uint32_t& value) {
+ParseError parseNumber(Cur& c, bool& isUInt, uint32_t& value, bool* isInt = nullptr,
+                       int32_t* svalue = nullptr) {
   const char* start = c.p;
   if (c.peek() == '-') ++c.p;
   bool digits = false, frac = false;
@@ -312,6 +313,10 @@ ParseError parseNumber(Cur& c, bool& isUInt, uint32_t& value) {
   }
   isUInt = (*start != '-') && !frac && !overflow;
   value = isUInt ? (uint32_t)v : 0;
+  if (isInt) {
+    *isInt = !frac && v <= 0x7FFFFFFFull;
+    if (svalue) *svalue = *isInt ? (*start == '-' ? -(int32_t)v : (int32_t)v) : 0;
+  }
   return ParseError::Ok;
 }
 
@@ -322,8 +327,22 @@ bool matchLiteral(Cur& c, const char* lit) {
   return true;
 }
 
-enum Field : uint8_t { F_TYPE = 1, F_SOURCE = 2, F_DEVICE = 4, F_DST = 8, F_MSGID = 16,
-                       F_ACKFOR = 32, F_TEXT = 64 };
+enum Field : uint32_t { F_TYPE = 1, F_SOURCE = 2, F_DEVICE = 4, F_DST = 8, F_MSGID = 16,
+                        F_ACKFOR = 32, F_TEXT = 64, F_RSSI = 1u << 7, F_SNR = 1u << 8 };
+
+// Unsigned counters of the STAT frame (receiver status), in GatewayStat order.
+constexpr const char* STAT_KEYS[] = {"seq", "map", "hbs", "miss", "ev", "dup", "bad", "up",
+                                     "lcd", "lora", "lost"};
+constexpr uint8_t STAT_KEY_COUNT = sizeof STAT_KEYS / sizeof STAT_KEYS[0];
+constexpr uint32_t F_STAT0 = 1u << 9;  // bit of STAT_KEYS[0]; the others follow
+
+void setStat(GatewayStat& g, uint8_t i, uint32_t v) {
+  uint32_t* u[] = {&g.seq, &g.map, &g.hbs, &g.miss, &g.events, &g.dups, &g.bad, &g.upS};
+  if (i < 8) *u[i] = v;
+  else if (i == 8) g.lcd = v != 0;
+  else if (i == 9) g.lora = v != 0;
+  else g.lost = v != 0;
+}
 
 }  // namespace
 
@@ -337,7 +356,8 @@ ParseError parse(const uint8_t* data, size_t len, IncomingMessage& out) {
   char source[cfg::MAX_ID_LEN + 1] = {};
   char device[cfg::MAX_ID_LEN + 1] = {};
   uint32_t msgId = 0, ackFor = 0;
-  uint8_t seen = 0;
+  int32_t rssi = 0, snr = 0;
+  uint32_t seen = 0;
 
   skipWs(c);
   if (c.peek() != '{') return ParseError::Malformed;
@@ -361,7 +381,8 @@ ParseError parse(const uint8_t* data, size_t len, IncomingMessage& out) {
     skipWs(c);
 
     // Identify target field.
-    uint8_t field = 0;
+    uint32_t field = 0;
+    int8_t statKey = -1;
     char* strTarget = nullptr;
     size_t strCap = 0;
     if (!strcmp(key, "type")) { field = F_TYPE; strTarget = type; strCap = sizeof type - 1; }
@@ -371,6 +392,12 @@ ParseError parse(const uint8_t* data, size_t len, IncomingMessage& out) {
     else if (!strcmp(key, "text")) { field = F_TEXT; strTarget = out.text; strCap = cfg::MAX_TEXT_BYTES; }
     else if (!strcmp(key, "message_id")) field = F_MSGID;
     else if (!strcmp(key, "ack_for")) field = F_ACKFOR;
+    else if (!strcmp(key, "rssi")) field = F_RSSI;
+    else if (!strcmp(key, "snr")) field = F_SNR;
+    else {
+      for (uint8_t i = 0; i < STAT_KEY_COUNT; ++i)
+        if (!strcmp(key, STAT_KEYS[i])) { statKey = static_cast<int8_t>(i); field = F_STAT0 << i; break; }
+    }
 
     if (field && (seen & field)) return ParseError::Malformed;  // duplicate key
     seen |= field;
@@ -378,18 +405,25 @@ ParseError parse(const uint8_t* data, size_t len, IncomingMessage& out) {
     const char v = c.peek();
     if (v == '{' || v == '[') return ParseError::Nested;
     if (v == '"') {
-      if (field == F_MSGID || field == F_ACKFOR) return ParseError::BadValue;
+      if (!strTarget && field) return ParseError::BadValue;  // number field given a string
       e = parseString(c, strTarget, strCap);
       if (e != ParseError::Ok) return e;
     } else if (v == '-' || (v >= '0' && v <= '9')) {
-      bool isUInt = false;
+      bool isUInt = false, isInt = false;
       uint32_t num = 0;
-      e = parseNumber(c, isUInt, num);
+      int32_t snum = 0;
+      e = parseNumber(c, isUInt, num, &isInt, &snum);
       if (e != ParseError::Ok) return e;
       if (strTarget) return ParseError::BadValue;  // string field given a number
       if (field == F_MSGID || field == F_ACKFOR) {
         if (!isUInt) return ParseError::BadValue;
         (field == F_MSGID ? msgId : ackFor) = num;
+      } else if (field == F_RSSI || field == F_SNR) {
+        if (!isInt || snum < -200 || snum > 100) return ParseError::BadValue;
+        (field == F_RSSI ? rssi : snr) = snum;
+      } else if (statKey >= 0) {
+        if (!isUInt) return ParseError::BadValue;
+        setStat(out.stat, static_cast<uint8_t>(statKey), num);
       }
     } else if (matchLiteral(c, "true") || matchLiteral(c, "false") || matchLiteral(c, "null")) {
       if (field) return ParseError::BadValue;
@@ -427,11 +461,22 @@ ParseError parse(const uint8_t* data, size_t len, IncomingMessage& out) {
     strcpy(out.sender, (seen & F_DEVICE) ? device : source);
     out.id = ackFor;
     out.text[0] = '\0';
+  } else if (!strcmp(type, "STAT")) {
+    out.type = MsgType::Stat;
+    if (!(seen & (F_SOURCE | F_DEVICE)) || !(seen & F_STAT0)) return ParseError::MissingField;
+    strcpy(out.sender, (seen & F_DEVICE) ? device : source);
+    out.text[0] = '\0';
   } else {
     out.type = MsgType::Unknown;
     return ParseError::UnknownType;
   }
   if (out.sender[0] == '\0') return ParseError::BadValue;
+  if ((seen & F_RSSI) && (seen & F_SNR)) {
+    out.hasLink = true;
+    out.rssi = static_cast<int16_t>(rssi);
+    out.snr = static_cast<int16_t>(snr);
+  }
+  if (out.type != MsgType::Stat) out.stat = GatewayStat();
   return ParseError::Ok;
 }
 

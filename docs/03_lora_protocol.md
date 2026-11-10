@@ -177,6 +177,17 @@ um período de 30–60 s reduz a ocupação do canal e o consumo.
 {"type":"ACK","device":"GATEWAY_01","dst":"KITCHEN_01","ack_for":458764}
 ```
 
+#### Campos opcionais `rssi` / `snr` no ACK, e o quadro STAT do receptor
+
+- O receptor (`receiver/`) inclui no ACK `"rssi":-31,"snr":9`, que dizem como ele ouviu o evento
+  confirmado.
+- O receptor também envia ao nó um quadro **STAT**, sem ACK: quais heartbeats ouviu, contadores,
+  estado do LCD e do rádio.
+- O nó não exibe nenhum dos dois: apenas repassa ao AirGuard Web pelo Wi-Fi.
+- Inteiros com sinal entre −200 e 100 (`rssi`/`snr`) e contadores sem sinal; valores de outro tipo
+  são rejeitados (`BadValue`).
+- Formato completo: [11_telemetry.md](11_telemetry.md).
+
 ### 3.4 Validação e segurança
 
 O parser rejeita e registra no log (`RX frame rejected (...)`) os seguintes casos:

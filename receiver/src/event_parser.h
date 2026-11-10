@@ -46,9 +46,25 @@ ParseResult parseHeartbeat(const char* data, size_t len, Heartbeat& out);
 // `data` need not be NUL-terminated. Unknown keys are ignored.
 ParseResult parseEvent(const char* data, size_t len, Event& out);
 
-// Builds {"type":"ACK","device":<gw>,"dst":<node>,"ack_for":<id>}. Returns the
+// Builds {"type":"ACK","device":<gw>,"dst":<node>,"ack_for":<id>,"rssi":<dBm>,"snr":<dB>}
+// (rssi/snr = how the receiver heard the event it confirms). Returns the
 // length (0 if it does not fit).
-size_t buildAck(char* out, size_t cap, const char* gatewayId, const char* nodeId, uint32_t id);
+size_t buildAck(char* out, size_t cap, const char* gatewayId, const char* nodeId, uint32_t id,
+                int rssi, int snr);
+
+// Receiver status sent to the node over LoRa (no ACK); the node forwards it to
+// AirGuard Web. Telemetry of the receiver only travels this way (no USB log).
+//   {"type":"STAT","device":"GATEWAY_01","dst":"KITCHEN_01","seq":120,"map":4294967295,
+//    "hbs":118,"miss":2,"ev":3,"dup":0,"bad":0,"rssi":-31,"snr":9,"lcd":1,"lora":1,"lost":0,"up":610}
+//   seq/map: last heartbeat seq heard and which of the 32 seqs up to it were heard
+//   (bit i = seq - i); hbs/miss/ev/dup/bad: counters since the receiver booted;
+//   rssi/snr: last frame from the node; up: receiver uptime (s).
+struct GwStat {
+  uint32_t seq = 0, map = 0, hbs = 0, miss = 0, events = 0, dups = 0, bad = 0, upS = 0;
+  int      rssi = 0, snr = 0;
+  bool     lcd = false, lora = false, lost = false;
+};
+size_t buildStat(char* out, size_t cap, const char* gatewayId, const char* nodeId, const GwStat& s);
 
 // Small ring of recently seen (device, event_id) pairs: a retransmission keeps
 // its event_id and must be ACKed again but not counted as a new event.

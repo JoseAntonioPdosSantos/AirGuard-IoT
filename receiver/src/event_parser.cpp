@@ -155,9 +155,24 @@ ParseResult parseHeartbeat(const char* d, size_t len, Heartbeat& h) {
   return ParseResult::Ok;
 }
 
-size_t buildAck(char* out, size_t cap, const char* gw, const char* node, uint32_t id) {
-  const int n = snprintf(out, cap, "{\"type\":\"ACK\",\"device\":\"%s\",\"dst\":\"%s\",\"ack_for\":%lu}",
-                         gw, node, static_cast<unsigned long>(id));
+size_t buildAck(char* out, size_t cap, const char* gw, const char* node, uint32_t id, int rssi,
+                int snr) {
+  const int n = snprintf(out, cap,
+                         "{\"type\":\"ACK\",\"device\":\"%s\",\"dst\":\"%s\",\"ack_for\":%lu,"
+                         "\"rssi\":%d,\"snr\":%d}",
+                         gw, node, static_cast<unsigned long>(id), rssi, snr);
+  return (n > 0 && static_cast<size_t>(n) < cap) ? static_cast<size_t>(n) : 0;
+}
+
+size_t buildStat(char* out, size_t cap, const char* gw, const char* node, const GwStat& s) {
+  const int n = snprintf(
+      out, cap,
+      "{\"type\":\"STAT\",\"device\":\"%s\",\"dst\":\"%s\",\"seq\":%lu,\"map\":%lu,\"hbs\":%lu,"
+      "\"miss\":%lu,\"ev\":%lu,\"dup\":%lu,\"bad\":%lu,\"rssi\":%d,\"snr\":%d,\"lcd\":%d,"
+      "\"lora\":%d,\"lost\":%d,\"up\":%lu}",
+      gw, node, (unsigned long)s.seq, (unsigned long)s.map, (unsigned long)s.hbs, (unsigned long)s.miss,
+      (unsigned long)s.events, (unsigned long)s.dups, (unsigned long)s.bad, s.rssi, s.snr, s.lcd ? 1 : 0,
+      s.lora ? 1 : 0, s.lost ? 1 : 0, (unsigned long)s.upS);
   return (n > 0 && static_cast<size_t>(n) < cap) ? static_cast<size_t>(n) : 0;
 }
 

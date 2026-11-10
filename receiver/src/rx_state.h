@@ -48,4 +48,20 @@ class ReceiverState {
   uint32_t lastMs_ = 0, events_ = 0, heartbeats_ = 0;
 };
 
+// Which heartbeats were heard: the node numbers them 1, 2, 3... A gap in the
+// sequence = heartbeats lost on the air. A smaller seq = the node rebooted.
+class HbTracker {
+ public:
+  void onHeartbeat(uint32_t seq);
+  bool     any() const { return any_; }
+  uint32_t lastSeq() const { return last_; }
+  uint32_t map() const { return map_; }       // bit i = seq (lastSeq - i) heard
+  uint32_t received() const { return received_; }
+  uint32_t missed() const { return missed_; }
+
+ private:
+  bool     any_ = false;
+  uint32_t last_ = 0, map_ = 0, received_ = 0, missed_ = 0;
+};
+
 }  // namespace rx

@@ -58,10 +58,11 @@ TEST(rx_rejects_bad_frames) {
 
 TEST(rx_builds_ack_the_node_accepts) {
   char b[96];
-  const size_t n = buildAck(b, sizeof b, "GATEWAY_01", "KITCHEN_01", 458764);
+  const size_t n = buildAck(b, sizeof b, "GATEWAY_01", "KITCHEN_01", 458764, -31, 9);
   CHECK(n > 0);
-  CHECK_STR(b, "{\"type\":\"ACK\",\"device\":\"GATEWAY_01\",\"dst\":\"KITCHEN_01\",\"ack_for\":458764}");
-  CHECK_EQ(buildAck(b, 10, "GATEWAY_01", "KITCHEN_01", 1), 0u);
+  CHECK_STR(b, "{\"type\":\"ACK\",\"device\":\"GATEWAY_01\",\"dst\":\"KITCHEN_01\",\"ack_for\":458764,"
+               "\"rssi\":-31,\"snr\":9}");
+  CHECK_EQ(buildAck(b, 10, "GATEWAY_01", "KITCHEN_01", 1, 0, 0), 0u);
 }
 
 TEST(rx_dedup_retransmission) {
@@ -146,31 +147,35 @@ TEST(rx_lost_signal_after_timeout) {
   CHECK_STR(l2, "ultimo ha 25s   ");
 }
 
-// ---- telemetry lines (AirGuard Web) ------------------------------------------
-#include "../src/rx_telemetry.h"
-
-TEST(rx_telemetry_line_format) {
-  rx::TlmLine t("ack", 42);
-  t.num("id", 7);
-  t.boolean("ok", true);
-  CHECK(t.finish() > 0);
-  CHECK_STR(t.c_str(), "@T {\"src\":\"gw\",\"k\":\"ack\",\"ms\":42,\"id\":7,\"ok\":true}\r\n");
+// ---- receiver telemetry for the node (STAT) ------------------------------------
+TEST(rx_hb_tracker_gaps_and_reboot) {
+  HbTracker t;
+  CHECK(!t.any());
+  t.onHeartbeat(10);
+  CHECK_EQ(t.map(), 1u);
+  t.onHeartbeat(11);
+  t.onHeartbeat(11);           // same frame twice: ignored
+  t.onHeartbeat(14);           // 12 and 13 lost
+  CHECK_EQ(t.lastSeq(), 14u);
+  CHECK_EQ(t.map(), 0b11001u); // 14, (13), (12), 11, 10
+  CHECK_EQ(t.received(), 3u);
+  CHECK_EQ(t.missed(), 2u);
+  t.onHeartbeat(100);          // long gap: only the newest is known
+  CHECK_EQ(t.map(), 1u);
+  t.onHeartbeat(1);            // node rebooted
+  CHECK_EQ(t.lastSeq(), 1u);
+  CHECK_EQ(t.map(), 1u);
+  CHECK_EQ(t.missed(), 2u + 85u);
 }
 
-TEST(rx_telemetry_frame_escaped_and_bounded) {
-  const char f[] = "{\"type\":\"HB\"}\nJUNK";
-  rx::TlmLine t("rx", 1);
-  t.strn("frame", f, 14);  // includes the '\n'
-  CHECK(t.finish() > 0);
-  CHECK(strstr(t.c_str(), "\"frame\":\"{\\\"type\\\":\\\"HB\\\"}\\u000a\"}"));
-  CHECK(!strstr(t.c_str(), "JUNK"));
-}
-
-TEST(rx_telemetry_overflow_gives_empty_line) {
-  rx::TlmLine t("rx", 1);
-  char big[800];
-  memset(big, 'a', sizeof big);
-  t.strn("frame", big, sizeof big);
-  CHECK_EQ(t.finish(), 0);
-  CHECK_STR(t.c_str(), "");
+TEST(rx_stat_frame_fits_the_radio) {
+  GwStat st;
+  st.seq = 4000000000u; st.map = 0xFFFFFFFFu; st.hbs = 4000000000u; st.miss = 4000000000u;
+  st.events = 4000000000u; st.dups = 4000000000u; st.bad = 4000000000u; st.upS = 4000000000u;
+  st.rssi = -120; st.snr = -20; st.lcd = st.lora = st.lost = true;
+  char b[240];
+  const size_t n = buildStat(b, sizeof b, "GATEWAY_01", "KITCHEN_01", st);
+  CHECK(n > 0 && n < 240);
+  CHECK(strstr(b, "\"type\":\"STAT\""));
+  CHECK(strstr(b, "\"rssi\":-120,\"snr\":-20"));
 }

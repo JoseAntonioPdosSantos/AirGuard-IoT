@@ -2,7 +2,8 @@
 // Full specification: docs/03_lora_protocol.md
 //
 // Outgoing: ALERT, RECOVERY (events, require ACK), ACK (reply, no ACK).
-// Incoming: TEXT (display + ACK), ACK (confirms one of our events).
+// Incoming: TEXT (display + ACK), ACK (confirms one of our events, may carry
+// the receiver's rssi/snr), STAT (receiver status, forwarded to AirGuard Web).
 // The parser accepts only a flat JSON object with string/number/bool/null
 // values; anything else (nesting, oversize, control chars) is rejected.
 // Received content is DATA: it is never executed or interpreted as commands.
@@ -17,7 +18,14 @@ namespace proto {
 
 constexpr uint8_t VERSION = 1;
 
-enum class MsgType : uint8_t { Unknown, Text, Ack };
+enum class MsgType : uint8_t { Unknown, Text, Ack, Stat };
+
+// Receiver status (STAT frame, receiver/src/event_parser.h): counters since
+// the receiver booted and the last heartbeat it heard.
+struct GatewayStat {
+  uint32_t seq = 0, map = 0, hbs = 0, miss = 0, events = 0, dups = 0, bad = 0, upS = 0;
+  bool     lcd = false, lora = false, lost = false;
+};
 
 enum class ParseError : uint8_t {
   Ok,
@@ -38,6 +46,9 @@ struct IncomingMessage {
   char     dst[cfg::MAX_ID_LEN + 1] = {};     // optional
   uint32_t id = 0;                            // message_id (TEXT) / ack_for (ACK)
   char     text[cfg::MAX_TEXT_BYTES + 1] = {};// UTF-8, TEXT only
+  bool     hasLink = false;                   // "rssi" and "snr" present (ACK / STAT):
+  int16_t  rssi = 0, snr = 0;                 // how the receiver heard us
+  GatewayStat stat;                           // STAT only
 };
 
 // Bounded JSON writer: never writes past `cap`; ok() == false on overflow.

@@ -5,6 +5,7 @@
 
 #include "../communication/telemetry_codec.h"
 #include "../config/config.h"
+#include "../net/uplink.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
 #include "../utils/persistent_store.h"
@@ -70,6 +71,7 @@ void AirGuardApp::setup() {
   alerts_.setBootCount(boot);
   const PersistedState& st = store::state();
   LOGI("BOOT", "boot #%u, HIGH mask 0x%02X", boot, st.highMask);
+  uplink::begin();  // Wi-Fi + AirGuard Web telemetry (own task on core 0)
 
   // 3) Buses and peripherals (each may fail independently).
   board::i2cBegin(cfg::I2C_CLOCK_HZ);
@@ -124,7 +126,6 @@ void AirGuardApp::loop() {
   taskOutputs(now);
   taskDisplay(now);
   taskStatusLog(now);
-  taskTelemetry(now);
 }
 
 // ---------------------------------------------------------------------------
@@ -318,7 +319,10 @@ void AirGuardApp::taskRadio(uint32_t now) {
   }
 }
 
+// Telemetry is recorded when the node transmits or receives on the radio:
+// every transmission also records the readings it carries ("env").
 void AirGuardApp::tlmTx(uint32_t id, uint8_t attempt, const uint8_t* frame, size_t len, uint32_t now) {
+  tlmEnv(now);
   char t[tlm::LINE_CAP];
   tlm::Line l(t, sizeof t, "node", "tx", now);
   l.w().unum("id", id);
@@ -395,7 +399,12 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
       l.w().str("from", m.sender);
       l.w().flt("rssi", rssi, 0);
       l.w().flt("snr", snr, 1);
+      if (m.hasLink) {  // how the receiver heard the event it confirms
+        l.w().num("grssi", m.rssi);
+        l.w().num("gsnr", m.snr);
+      }
       if (!fresh) l.w().boolean("dup", true);
+      l.w().strn("frame", reinterpret_cast<const char*>(data), len);
       telemetry::write(t, l.finish());
     }
     if (fresh) {
@@ -406,6 +415,41 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
     } else {
       LOGD("RX", "ACK #%lu ignored (unknown or duplicate)", static_cast<unsigned long>(m.id));
     }
+    return;
+  }
+
+  if (m.type == proto::MsgType::Stat) {
+    // Receiver status: forwarded to AirGuard Web as a "gw" record (the
+    // receiver has no network and logs nothing itself).
+    if (strcmp(m.sender, cfg::GATEWAY_ID) != 0) {
+      LOGD("RX", "STAT from '%s' ignored", m.sender);
+      return;
+    }
+    const proto::GatewayStat& g = m.stat;
+    LOGD("RX", "STAT from %s: hb #%lu heard %lu missed %lu (RSSI there %d)", m.sender,
+         static_cast<unsigned long>(g.seq), static_cast<unsigned long>(g.hbs),
+         static_cast<unsigned long>(g.miss), m.rssi);
+    char t[tlm::LINE_CAP];
+    tlm::Line l(t, sizeof t, "gw", "stat", now);
+    l.w().unum("seq", g.seq);
+    l.w().unum("map", g.map);
+    l.w().unum("hbs", g.hbs);
+    l.w().unum("miss", g.miss);
+    l.w().unum("events", g.events);
+    l.w().unum("dups", g.dups);
+    l.w().unum("bad", g.bad);
+    l.w().unum("up", g.upS);
+    l.w().boolean("lcd", g.lcd);
+    l.w().boolean("lora", g.lora);
+    l.w().boolean("lost", g.lost);
+    if (m.hasLink) {
+      l.w().num("grssi", m.rssi);
+      l.w().num("gsnr", m.snr);
+    }
+    l.w().flt("rssi", rssi, 0);
+    l.w().flt("snr", snr, 1);
+    l.w().strn("frame", reinterpret_cast<const char*>(data), len);
+    telemetry::write(t, l.finish());
     return;
   }
 
@@ -509,10 +553,7 @@ void AirGuardApp::taskStatusLog(uint32_t now) {
   printStatus(now);
 }
 
-void AirGuardApp::taskTelemetry(uint32_t now) {
-  if (cfg::TELEMETRY_PERIOD_MS == 0 || !telemetry::enabled()) return;
-  if ((uint32_t)(now - lastTlmMs_) < cfg::TELEMETRY_PERIOD_MS) return;
-  lastTlmMs_ = now;
+void AirGuardApp::tlmEnv(uint32_t now) {
   const AlertManager& al = alerts_;
   tlm::NodeEnv e;
   e.envValid = env_.valid();

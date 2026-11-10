@@ -38,12 +38,36 @@ TEST(interop_node_alert_is_understood_by_receiver) {
 
 TEST(interop_receiver_ack_is_accepted_by_node) {
   char ack[96];
-  const size_t n = rx::buildAck(ack, sizeof ack, "GATEWAY_01", "KITCHEN_01", 1245188);
+  const size_t n = rx::buildAck(ack, sizeof ack, "GATEWAY_01", "KITCHEN_01", 1245188, -42, -3);
   proto::IncomingMessage m;
   CHECK(proto::parse(reinterpret_cast<const uint8_t*>(ack), n, m) == proto::ParseError::Ok);
   CHECK(m.type == proto::MsgType::Ack);
   CHECK_EQ(m.id, 1245188u);
   CHECK(proto::addressedToUs(m, "KITCHEN_01"));
+  CHECK(m.hasLink && m.rssi == -42 && m.snr == -3);
+}
+
+TEST(interop_receiver_stat_is_accepted_by_node) {
+  rx::GwStat st;
+  st.seq = 120; st.map = 0xFFFFFFFDu; st.hbs = 118; st.miss = 2; st.events = 3; st.dups = 1; st.bad = 4;
+  st.rssi = -31; st.snr = 9; st.lcd = true; st.lora = true; st.lost = false; st.upS = 610;
+  char b[240];
+  const size_t n = rx::buildStat(b, sizeof b, "GATEWAY_01", "KITCHEN_01", st);
+  proto::IncomingMessage m;
+  CHECK(proto::parse(reinterpret_cast<const uint8_t*>(b), n, m) == proto::ParseError::Ok);
+  CHECK(m.type == proto::MsgType::Stat);
+  CHECK_STR(m.sender, "GATEWAY_01");
+  CHECK(proto::addressedToUs(m, "KITCHEN_01"));
+  CHECK_EQ(m.stat.seq, 120u);
+  CHECK_EQ(m.stat.map, 0xFFFFFFFDu);
+  CHECK_EQ(m.stat.hbs, 118u);
+  CHECK_EQ(m.stat.miss, 2u);
+  CHECK_EQ(m.stat.events, 3u);
+  CHECK_EQ(m.stat.dups, 1u);
+  CHECK_EQ(m.stat.bad, 4u);
+  CHECK_EQ(m.stat.upS, 610u);
+  CHECK(m.hasLink && m.rssi == -31 && m.snr == 9);
+  CHECK(m.stat.lcd && m.stat.lora && !m.stat.lost);
 }
 
 TEST(interop_node_heartbeat_is_understood_by_receiver) {

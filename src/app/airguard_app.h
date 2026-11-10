@@ -39,7 +39,6 @@ class AirGuardApp {
   void taskDisplay(uint32_t now);
   void taskStatusLog(uint32_t now);
   void taskConsole(uint32_t now);
-  void taskTelemetry(uint32_t now);
 
   // helpers
   void handleFrame(const uint8_t* data, size_t len, float rssi, float snr, uint32_t now);
@@ -54,6 +53,7 @@ class AirGuardApp {
   void printStats();
   void tlmTx(uint32_t id, uint8_t attempt, const uint8_t* frame, size_t len, uint32_t now);
   void tlmTxDone(uint32_t id, bool ok, uint32_t now);
+  void tlmEnv(uint32_t now);
 
   // hardware
   Mq135Sensor       mq_;
@@ -74,7 +74,7 @@ class AirGuardApp {
 
   // scheduling
   uint32_t bootMs_ = 0;
-  uint32_t lastAirMs_ = 0, lastEnvMs_ = 0, lastDisplayMs_ = 0, lastStatusMs_ = 0, lastTlmMs_ = 0;
+  uint32_t lastAirMs_ = 0, lastEnvMs_ = 0, lastDisplayMs_ = 0, lastStatusMs_ = 0;
   bool     airSampleNew_ = false, envSampleNew_ = false;
   bool     restoreAnnounced_ = false;
   uint8_t  savedHighMask_ = 0;

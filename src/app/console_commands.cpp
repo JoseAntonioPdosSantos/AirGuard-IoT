@@ -10,6 +10,7 @@
 #include "../config/hardware_pins.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
+#include "../net/uplink.h"
 #include "../utils/telemetry.h"
 #include "airguard_app.h"
 
@@ -34,7 +35,11 @@ const char* HELP =
     "  sim text <message>                   inject a TEXT from WHATSAPP_GATEWAY\r\n"
     "  sim off                              disable every simulation\r\n"
     "  log debug|info|warn                  log level\r\n"
-    "  tlm on|off                           '@T' telemetry lines for AirGuard Web\r\n"
+    "  tlm on|off                           echo telemetry records on USB as '@T' lines\r\n"
+    "  net                                  Wi-Fi / AirGuard Web uplink status\r\n"
+    "  net ssid <name> | net pass <pass>    Wi-Fi network (saved in flash; rest of the line)\r\n"
+    "  net server http://host:port          AirGuard Web server\r\n"
+    "  net key <device key>                 key from: cli.js device:add \"ESP32\"\r\n"
     "  reboot                               reboot (test: reboot during alert)\r\n";
 
 void writeRaw(const char* s) {
@@ -122,9 +127,23 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
 
   if (!strcmp(cmd, "tlm")) {
     const char* a = nextWord(p);
-    if (!strcmp(a, "on")) telemetry::setEnabled(true);
-    else if (!strcmp(a, "off")) telemetry::setEnabled(false);
-    LOGI("CON", "telemetry %s", telemetry::enabled() ? "ON" : "OFF");
+    if (!strcmp(a, "on")) telemetry::setEcho(true);
+    else if (!strcmp(a, "off")) telemetry::setEcho(false);
+    LOGI("CON", "telemetry echo on USB %s", telemetry::echo() ? "ON" : "OFF");
+    return;
+  }
+  if (!strcmp(cmd, "net")) {
+    const char* a = nextWord(p);
+    if (!*a) { uplink::printStatus(); return; }
+    // the value is the rest of the line (a Wi-Fi name or password may hold spaces)
+    uplink::Setting s;
+    if (!strcmp(a, "ssid")) s = uplink::Setting::Ssid;
+    else if (!strcmp(a, "pass")) s = uplink::Setting::Password;
+    else if (!strcmp(a, "server")) s = uplink::Setting::Server;
+    else if (!strcmp(a, "key")) s = uplink::Setting::Key;
+    else { LOGW("CON", "usage: net | net ssid|pass|server|key <value>"); return; }
+    if (uplink::set(s, p)) LOGI("CON", "net %s saved%s", a, *p ? "" : " (cleared)");
+    else LOGW("CON", "net %s: value too long%s", a, s == uplink::Setting::Server ? " or not http://" : "");
     return;
   }
   if (!strcmp(cmd, "warmup")) {
