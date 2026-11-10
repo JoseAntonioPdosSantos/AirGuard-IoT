@@ -6,7 +6,7 @@
 class EnvironmentMonitor {
  public:
   // ok=false when the driver failed (timeout, checksum, NaN).
-  void addReading(bool ok, float tempC, float rh, uint32_t nowMs);
+  void addReading(bool ok, float tempC, float rh);
 
   bool  valid() const { return valid_; }            // last reading valid
   bool  faulted() const;                            // persistent failure
@@ -15,7 +15,6 @@ class EnvironmentMonitor {
   float heatIndex() const { return heatIndex_; }
   // Apparent temperature used for the "hot" side: max(T, heat index).
   float apparent() const { return heatIndex_ > temp_ ? heatIndex_ : temp_; }
-  bool  hasEverBeenValid() const { return everValid_; }
 
   // Simulation
   void simulateTemperature(bool enable, float t = 0) { simTempOn_ = enable; simTemp_ = t; }
@@ -25,7 +24,6 @@ class EnvironmentMonitor {
 
  private:
   bool    valid_ = false;
-  bool    everValid_ = false;
   uint8_t failCount_ = 0;
   float   temp_ = 0, hum_ = 0, heatIndex_ = 0;
   bool    simTempOn_ = false, simHumOn_ = false, simFault_ = false;

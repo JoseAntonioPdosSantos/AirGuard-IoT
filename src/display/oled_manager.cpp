@@ -62,7 +62,6 @@ const char* linkText(LinkState l) {
 const char* systemText(uint16_t f) {
   if (f & SYS_ENV_SENSOR_FAULT) return "TEMP/HUM SENSOR FAIL";
   if (f & SYS_AIR_SENSOR_FAULT) return "MQ-135 READ FAIL";
-  if (f & SYS_MQ135_UNCAL) return "MQ-135 UNCALIBRATED";
   if (f & SYS_LORA_RADIO_FAULT) return "LORA RADIO FAULT";
   if (f & SYS_LORA_NO_ACK) return "LORA: NO ACK";
   if (f & SYS_DISPLAY_FAULT) return "DISPLAY FAULT";
@@ -215,14 +214,11 @@ void OledManager::drawMain(const DisplayModel& m) {
   drawHeader(m);
 
   const char* status = nullptr;
-  if (m.calibrating) { snprintf(b, sizeof b, "CAL %u%%", m.calPercent); status = b; }
-  else if (m.envFault || m.airFault) status = "SENSOR FAULT";
+  if (m.envFault || m.airFault) status = "SENSOR FAULT";
   else if (m.airWarmingUp) status = "WARMING UP";
   drawTicker(m, status);
 
-  // Last two lines: unchanged.
   if (!m.airAoValid) snprintf(b, sizeof b, "MQ135 AO: --- V");
-  else if (m.airUsable) snprintf(b, sizeof b, "AO %.2fV  index %.0f", m.airAoVolts, m.airIndex);
   else snprintf(b, sizeof b, "MQ135 AO: %.2f V", m.airAoVolts);
   textAt(0, BLUE_Y + 28, b);
   drawFooter(m);

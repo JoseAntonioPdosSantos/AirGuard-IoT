@@ -1,4 +1,4 @@
-// AirGuard IoT - USB serial console: calibration, diagnostics and the sensor /
+// AirGuard IoT - USB serial console: diagnostics, bench tests and the sensor /
 // radio SIMULATION used by the experimental test plan (docs/07_test_plan.md).
 // Commands never execute data received over LoRa; this console is local only.
 #include <Arduino.h>
@@ -10,7 +10,6 @@
 #include "../config/hardware_pins.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
-#include "../utils/persistent_store.h"
 #include "airguard_app.h"
 
 namespace {
@@ -21,10 +20,8 @@ const char* HELP =
     "  diag                                 wiring diagnostics (I2C scan, line levels, LoRa baud probe)\r\n"
     "  oled test [s]                        all OLED pixels ON (default 10 s) to find dead rows\r\n"
     "  out test [s]                         cycle LED yellow -> red -> buzzer (default 9 s)\r\n"
-    "  cal start | cal abort | cal status   clean-air R0 calibration (60 s)\r\n"
-    "  r0 <ohm>                             set R0 manually (persisted)\r\n"
     "  warmup skip                          skip MQ-135 warm-up (TESTS ONLY)\r\n"
-    "  sim air <0..100> | sim air off       simulate air_index\r\n"
+    "  sim air <volts> | sim air off        simulate the MQ-135 AO voltage (0..5 V)\r\n"
     "  sim adc <0..4095> | sim adc off      simulate MQ-135 raw ADC\r\n"
     "  sim temp <C> | sim temp off          simulate temperature\r\n"
     "  sim hum <%> | sim hum off            simulate humidity\r\n"
@@ -97,9 +94,8 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
       outTest_ = true;
       outTestStartMs_ = now;
       outTestUntilMs_ = now + secs * 1000UL;
-      LOGI("CON", "output test %lu s: yellow %s%u, red %s%u, buzzer %s%u (1 s each)",
-           static_cast<unsigned long>(secs), board::PIN_PREFIX, pins::LED_YELLOW,
-           board::PIN_PREFIX, pins::LED_RED, board::PIN_PREFIX, pins::BUZZER);
+      LOGI("CON", "output test %lu s: yellow GPIO%u, red GPIO%u, buzzer GPIO%u (1 s each)",
+           static_cast<unsigned long>(secs), pins::LED_YELLOW, pins::LED_RED, pins::BUZZER);
     } else {
       LOGW("CON", "usage: out test [s]");
     }
@@ -122,38 +118,6 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
     return;
   }
 
-  if (!strcmp(cmd, "cal")) {
-    const char* sub = nextWord(p);
-    if (!strcmp(sub, "start")) {
-      if (air_.startCalibration(now))
-        LOGI("CAL", "started: keep the sensor in CLEAN air for %lu s",
-             static_cast<unsigned long>(mq135::CAL_DURATION_MS / 1000));
-      else
-        LOGE("CAL", "not ready (warm-up %lu s left, fault=%d)",
-             static_cast<unsigned long>(air_.warmupRemainingMs(now) / 1000), air_.faulted());
-    } else if (!strcmp(sub, "abort")) {
-      air_.abortCalibration();
-      LOGI("CAL", "aborted");
-    } else {
-      LOGI("CAL", "state %u progress %.0f%% R0 %.0f (%s) last mean %.0f CV %.3f",
-           static_cast<unsigned>(air_.calState()), air_.calProgress(now) * 100, air_.r0(),
-           air_.calibrated() ? "valid" : "none", air_.calMean(), air_.calCv());
-    }
-    return;
-  }
-
-  if (!strcmp(cmd, "r0")) {
-    float v;
-    if (!parseFloat(nextWord(p), v) || !air_.setR0(v)) {
-      LOGE("CON", "invalid R0 (plausible %.0f..%.0f ohm)", mq135::R0_MIN_PLAUSIBLE,
-           mq135::R0_MAX_PLAUSIBLE);
-      return;
-    }
-    store::setR0(v);
-    LOGI("CAL", "R0 set to %.0f ohm and saved", v);
-    return;
-  }
-
   if (!strcmp(cmd, "warmup")) {
     if (!strcmp(nextWord(p), "skip")) {
       air_.skipWarmup();
@@ -167,7 +131,7 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
   // ---- simulation ---------------------------------------------------------
   const char* what = nextWord(p);
   if (!strcmp(what, "off")) {
-    air_.simulateIndex(false);
+    air_.simulateVolts(false);
     air_.simulateAdc(false);
     air_.simulateFault(false);
     env_.simulateTemperature(false);
@@ -215,9 +179,9 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
   float v = 0;
   const bool hasNum = parseFloat(arg, v);
 
-  if (!strcmp(what, "air") && (off || hasNum)) {
-    air_.simulateIndex(!off, v);
-    LOGI("SIM", "air_index %s", off ? "real" : arg);
+  if (!strcmp(what, "air") && (off || (hasNum && v >= 0 && v <= 5))) {
+    air_.simulateVolts(!off, v);
+    LOGI("SIM", "MQ-135 AO voltage %s%s", off ? "real" : arg, off ? "" : " V");
   } else if (!strcmp(what, "adc") && (off || (hasNum && v >= 0 && v <= 4095))) {
     air_.simulateAdc(!off, static_cast<uint16_t>(v));
     LOGI("SIM", "MQ-135 ADC %s", off ? "real" : arg);
@@ -267,13 +231,12 @@ void AirGuardApp::runDiagnostics(uint32_t now) {
   char b[200];
   snprintf(b, sizeof b, "board: %s\r\n", board::NAME);
   writeRaw(b);
-  const char* P = board::PIN_PREFIX;
 
   // ---- I2C (OLED) ----
   Wire.end();
-  snprintf(b, sizeof b, "I2C SDA %s%u: %s\r\n", P, pins::I2C_SDA, idleLevel(pins::I2C_SDA));
+  snprintf(b, sizeof b, "I2C SDA GPIO%u: %s\r\n", pins::I2C_SDA, idleLevel(pins::I2C_SDA));
   writeRaw(b);
-  snprintf(b, sizeof b, "I2C SCL %s%u: %s\r\n", P, pins::I2C_SCL, idleLevel(pins::I2C_SCL));
+  snprintf(b, sizeof b, "I2C SCL GPIO%u: %s\r\n", pins::I2C_SCL, idleLevel(pins::I2C_SCL));
   writeRaw(b);
   board::i2cBegin(100000);  // slow scan
   int found = 0;
@@ -291,14 +254,14 @@ void AirGuardApp::runDiagnostics(uint32_t now) {
   board::watchdogFeed();
 
   // ---- DHT data line ----
-  snprintf(b, sizeof b, "DHT11 DATA %s%u: %s\r\n", P, pins::DHT_DATA, idleLevel(pins::DHT_DATA));
+  snprintf(b, sizeof b, "DHT11 DATA GPIO%u: %s\r\n", pins::DHT_DATA, idleLevel(pins::DHT_DATA));
   writeRaw(b);
   pinMode(pins::DHT_DATA, INPUT_PULLUP);  // library default between reads
 
   // ---- RYLR998 ----
   lora_.simulateFault(now);  // stop the driver; it re-initialises by itself in 30 s
   board::loraUartEnd();
-  snprintf(b, sizeof b, "RYLR998 TXD -> %s%u (idle must be HIGH): %s\r\n", P, pins::LORA_UART_RX,
+  snprintf(b, sizeof b, "RYLR998 TXD -> GPIO%u (idle must be HIGH): %s\r\n", pins::LORA_UART_RX,
            idleLevel(pins::LORA_UART_RX));
   writeRaw(b);
   digitalWrite(pins::LORA_NRST, HIGH);
@@ -336,28 +299,19 @@ void AirGuardApp::runDiagnostics(uint32_t now) {
   if (!answered) {
     // Same test with TX/RX swapped: detects crossed TXD/RXD wires.
     char resp[48];
-    bool swappedOk;
-#if defined(ARDUINO_ARCH_RP2040)
-    // UART0 cannot swap its pins; a PIO UART can use any pins.
-    SerialPIO swapped(pins::LORA_UART_RX, pins::LORA_UART_TX, 64);
-    swapped.begin(cfg::LORA_UART_BAUD);
-    swappedOk = probe(swapped, resp, sizeof resp);
-    swapped.end();
-#else
     board::loraUartBegin(cfg::LORA_UART_BAUD, 256, /*swapped=*/true);
-    swappedOk = probe(board::loraSerial(), resp, sizeof resp);
+    const bool swappedOk = probe(board::loraSerial(), resp, sizeof resp);
     board::loraUartEnd();
-#endif
     if (swappedOk)
       snprintf(b, sizeof b,
                "RYLR998: answers with TX/RX SWAPPED -> exchange the TXD and RXD wires "
-               "(module TXD must go to %s%u, RXD to %s%u)\r\n",
-               P, pins::LORA_UART_RX, P, pins::LORA_UART_TX);
+               "(module TXD must go to GPIO%u, RXD to GPIO%u)\r\n",
+               pins::LORA_UART_RX, pins::LORA_UART_TX);
     else
       snprintf(b, sizeof b,
-               "RYLR998: no +OK at any baud, also not swapped (check RXD wire to %s%u, "
-               "3V3/GND at the module, NRST to %s%u)\r\n",
-               P, pins::LORA_UART_TX, P, pins::LORA_NRST);
+               "RYLR998: no +OK at any baud, also not swapped (check RXD wire to GPIO%u, "
+               "3V3/GND at the module, NRST to GPIO%u)\r\n",
+               pins::LORA_UART_TX, pins::LORA_NRST);
     writeRaw(b);
   }
   board::loraUartBegin(cfg::LORA_UART_BAUD, 512);

@@ -138,7 +138,6 @@ void LoraManager::loop(uint32_t now) {
         if ((uint32_t)(now - txStartMs_) >= lastAirtimeMs_ + 20) {
           txDone_ = true;
           txOk_ = true;
-          ++txFrames_;
           state_ = State::Rx;
           lastActivityMs_ = now;
         }

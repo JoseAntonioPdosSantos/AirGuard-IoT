@@ -45,7 +45,7 @@ class AirGuardApp {
   void sendAck(const char* to, uint32_t id, uint32_t now);
   void queueHeartbeat(uint32_t now);
   void queueEvent(const AlertEvent& e, uint32_t now);
-  uint16_t computeSystemFlags(uint32_t now) const;
+  uint16_t computeSystemFlags() const;
   SensorSnapshot snapshot(uint32_t now) const;
   void handleCommand(char* line, uint32_t now);
   void runDiagnostics(uint32_t now);
@@ -64,7 +64,7 @@ class AirGuardApp {
   // logic
   AirQualityMonitor    air_;
   EnvironmentMonitor   env_;
-  AlertManager*        alerts_ = nullptr;  // constructed in setup() (needs boot count)
+  AlertManager         alerts_;
   AckManager           ack_;
   RecentIdCache        rxDedup_;
   RemoteMessageDisplay msgs_;
@@ -74,7 +74,6 @@ class AirGuardApp {
   uint32_t lastAirMs_ = 0, lastEnvMs_ = 0, lastDisplayMs_ = 0, lastStatusMs_ = 0;
   bool     airSampleNew_ = false, envSampleNew_ = false;
   bool     restoreAnnounced_ = false;
-  CalState lastCalState_ = CalState::Idle;
   uint8_t  savedHighMask_ = 0;
 
   // radio bookkeeping

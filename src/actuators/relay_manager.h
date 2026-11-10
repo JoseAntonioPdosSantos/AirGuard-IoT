@@ -12,11 +12,9 @@ class RelayManager {
   void begin();
   void set(bool energised, uint32_t nowMs);
   bool energised() const { return on_; }
-  uint32_t switchCount() const { return switches_; }
 
  private:
   void write(bool on);
   bool on_ = false;
-  uint32_t switches_ = 0;
   uint32_t lastChangeMs_ = 0;
 };

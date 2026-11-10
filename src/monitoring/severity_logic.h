@@ -16,7 +16,6 @@ class HysteresisClassifier {
   Severity update(float aboveValue, float belowValue);
   Severity update(float value) { return update(value, value); }
   void reset() { lastAbove_ = lastBelow_ = Severity::Normal; }
-  const ThresholdSet& thresholds() const { return t_; }
 
  private:
   static Severity classifySide(const LevelThresholds& lt, float v, Severity current,

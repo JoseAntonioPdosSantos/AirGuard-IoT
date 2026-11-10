@@ -1,7 +1,7 @@
 // AirGuard IoT - SMART ENVIRONMENTAL MONITORING
 // "Intelligent monitoring. Safer environments."
 //
-// Kitchen environmental monitor for the ESP32 DevKit or the Waveshare RP2040-Zero:
+// Kitchen environmental monitor for the ESP32 DevKit:
 // MQ-135 (relative air quality), DHT11 (temperature, humidity),
 // REYAX RYLR998 LoRa (alerts + ACK, remote text), SSD1306 OLED, buzzer, relay, LEDs.
 //

@@ -34,7 +34,6 @@ class LoraManager {
   uint16_t lastRxAddress() const { return rxAddr_; }
   uint32_t crcErrors() const { return rxErrors_; }   // +ERR=12/19 and bad +RCV lines
   uint32_t rxFrames() const { return rxFrames_; }
-  uint32_t txFrames() const { return txFrames_; }
   uint32_t rxOverruns() const { return rxOverruns_; }
   uint32_t lastAirtimeMs() const { return lastAirtimeMs_; }
   // Test hook (serial console): force a Fault to exercise "LoRa lost".
@@ -80,5 +79,5 @@ class LoraManager {
   size_t   rxLen_ = 0;
   uint16_t rxAddr_ = 0;
   float    rxRssi_ = 0, rxSnr_ = 0;
-  uint32_t rxErrors_ = 0, rxFrames_ = 0, rxOverruns_ = 0, txFrames_ = 0;
+  uint32_t rxErrors_ = 0, rxFrames_ = 0, rxOverruns_ = 0;
 };

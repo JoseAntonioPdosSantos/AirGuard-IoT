@@ -14,7 +14,8 @@ enum SystemFlag : uint16_t {
   SYS_NONE             = 0,
   SYS_ENV_SENSOR_FAULT = 1 << 0,  // MEDIUM
   SYS_AIR_SENSOR_FAULT = 1 << 1,  // MEDIUM
-  SYS_MQ135_UNCAL      = 1 << 2,  // LOW
+  // 1 << 2 was SYS_MQ135_UNCAL (R0 calibration, removed); bit kept unused so
+  // the "flags" values on the radio stay the same.
   SYS_LORA_RADIO_FAULT = 1 << 3,  // LOW (cannot be reported by radio!)
   SYS_LORA_NO_ACK      = 1 << 4,  // LOW (delivery failures)
   SYS_DISPLAY_FAULT    = 1 << 5,  // LOW
@@ -28,19 +29,13 @@ const char* eventKindName(EventKind k);
 
 // Latest measurements, copied into every event so a message is self-contained.
 struct SensorSnapshot {
-  bool     airValid = false;
-  bool     airWarmingUp = true;
-  bool     airCalibrated = false;
+  bool     airValid = false;  // usable: valid, warmed up, no fault
   uint16_t rawAdc = 0;
-  float    adcVoltage = 0;   // at the MCU ADC pin
-  float    sensorVoltage = 0;// at MQ-135 AO (divider undone)
-  float    rs = 0;           // ohms
-  float    ratio = 0;        // Rs/R0 (compensated if enabled)
-  float    airIndex = 0;     // 0..100 relative
+  float    gasVolts = 0;      // MQ-135 AO voltage used by the alarm
   bool     envValid = false;
-  float    temperature = 0;  // C
-  float    humidity = 0;     // %RH
-  float    heatIndex = 0;    // C
+  float    temperature = 0;   // C
+  float    humidity = 0;      // %RH
+  float    heatIndex = 0;     // C
 };
 
 struct AlertEvent {

@@ -2,14 +2,15 @@
 
 #include "../config/thresholds.h"
 
-AlertManager::AlertManager(uint16_t bootCount, const ThresholdSet& airThresholds)
-    : ids_(bootCount),
-      airCls_(airThresholds),
+AlertManager::AlertManager(uint16_t bootCount, const ThresholdSet& gasThresholds)
+    : airCls_(gasThresholds),
       tempCls_(thr::TEMPERATURE),
       humCls_(thr::HUMIDITY),
       airTrk_(cfg::AIR_ESCALATE_MS, cfg::AIR_RECOVER_MS),
       tempTrk_(cfg::TEMP_ESCALATE_MS, cfg::TEMP_RECOVER_MS),
-      humTrk_(cfg::HUM_ESCALATE_MS, cfg::HUM_RECOVER_MS) {}
+      humTrk_(cfg::HUM_ESCALATE_MS, cfg::HUM_RECOVER_MS) {
+  ids_.setBootCount(bootCount);
+}
 
 Severity AlertManager::systemSeverityFor(uint16_t f) {
   if (f & (SYS_ENV_SENSOR_FAULT | SYS_AIR_SENSOR_FAULT)) return Severity::Medium;
@@ -17,10 +18,10 @@ Severity AlertManager::systemSeverityFor(uint16_t f) {
   return Severity::Normal;
 }
 
-void AlertManager::updateAir(bool usable, float idx, uint32_t now) {
+void AlertManager::updateAir(bool usable, float gasVolts, uint32_t now) {
   if (!usable) return;  // hold last confirmed level
   const Severity prev = airTrk_.confirmed();
-  if (airTrk_.update(airCls_.update(idx), now))
+  if (airTrk_.update(airCls_.update(gasVolts), now))
     onConfirmedChange(Category::AirQuality, prev, airTrk_.confirmed(), now);
 }
 
@@ -133,7 +134,6 @@ void AlertManager::emit(const AlertEvent& e) {
   if (count_ == QUEUE) {  // overwrite oldest; the newest state matters most
     head_ = (head_ + 1) % QUEUE;
     --count_;
-    ++dropped_;
   }
   queue_[(head_ + count_) % QUEUE] = e;
   ++count_;

@@ -14,9 +14,8 @@ TEST(interop_node_alert_is_understood_by_receiver) {
   a.previous = Severity::Medium;
   a.eventId = 0x00130004;
   a.uptimeS = 42;
-  a.snapshot.airValid = a.snapshot.airCalibrated = true;
-  a.snapshot.airWarmingUp = false;
-  a.snapshot.airIndex = 62.0f;
+  a.snapshot.airValid = true;
+  a.snapshot.gasVolts = 3.100f;  // air_index 62.0
   a.snapshot.envValid = true;
   a.snapshot.temperature = 25.4f;
   a.snapshot.humidity = 61.0f;
@@ -50,9 +49,8 @@ TEST(interop_receiver_ack_is_accepted_by_node) {
 TEST(interop_node_heartbeat_is_understood_by_receiver) {
   Severity lv[CATEGORY_COUNT] = {Severity::High, Severity::Normal, Severity::Low, Severity::Normal};
   SensorSnapshot s;
-  s.airValid = s.airCalibrated = true;
-  s.airWarmingUp = false;
-  s.airIndex = 62.0f;
+  s.airValid = true;
+  s.gasVolts = 3.100f;  // air_index 62.0
   s.envValid = true;
   s.temperature = 25.4f;
   s.humidity = 61.0f;

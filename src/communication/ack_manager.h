@@ -66,7 +66,6 @@ class AckManager {
   uint8_t pending() const;
   uint8_t waitingAck() const;
   bool    linkHealthy() const { return consecutiveFailures_ == 0; }
-  uint32_t consecutiveFailures() const { return consecutiveFailures_; }
   const Stats& stats() const { return stats_; }
   const Entry* find(uint32_t id) const;
 

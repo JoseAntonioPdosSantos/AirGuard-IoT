@@ -4,17 +4,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "../config/thresholds.h"
 #include "../monitoring/alert_types.h"
-
-#ifndef AIRGUARD_ENV_SENSOR_NAME
-#if defined(AIRGUARD_ENV_SENSOR_AHT20)
-#define AIRGUARD_ENV_SENSOR_NAME "AHT20"
-#elif defined(AIRGUARD_ENV_SENSOR_DHT11)
-#define AIRGUARD_ENV_SENSOR_NAME "DHT11"
-#else
-#define AIRGUARD_ENV_SENSOR_NAME "DHT22"
-#endif
-#endif
 
 namespace proto {
 
@@ -115,11 +106,18 @@ size_t JsonWriter::finish() {
 // ===========================================================================
 // Encoders
 // ===========================================================================
+uint32_t airIndex(float gasVolts) {
+  float i = 100.0f * gasVolts / mq135::CIRCUIT_VOLTAGE;
+  if (!(i > 0)) i = 0;  // also NaN
+  if (i > 100) i = 100;
+  return static_cast<uint32_t>(i + 0.5f);
+}
+
 static const char* sensorFor(Category c) {
   switch (c) {
     case Category::AirQuality: return "MQ135";
     case Category::Temperature:
-    case Category::Humidity: return AIRGUARD_ENV_SENSOR_NAME;
+    case Category::Humidity: return "DHT11";
     default: return "SYSTEM";
   }
 }
@@ -140,8 +138,7 @@ static size_t encodeEventDetail(const AlertEvent& e, const char* device, const c
   if (detail < 2) w.str("sensor", sensorFor(e.category));
   const SensorSnapshot& s = e.snapshot;
   if (detail == 0 || e.category == Category::AirQuality) w.unum("raw_adc", s.rawAdc);
-  if (s.airValid && s.airCalibrated && !s.airWarmingUp)
-    w.unum("air_index", static_cast<uint32_t>(s.airIndex + 0.5f));
+  if (s.airValid) w.unum("air_index", airIndex(s.gasVolts));
   if (s.envValid) {
     w.flt("temperature", s.temperature, 1);
     w.flt("humidity", s.humidity, 0);
@@ -191,8 +188,7 @@ size_t encodeHeartbeat(const char* device, const char* dst, uint32_t seq,
   w.str("dst", dst);
   w.unum("seq", seq);
   w.str("levels", lv);
-  if (s.airValid && s.airCalibrated && !s.airWarmingUp)
-    w.unum("air_index", static_cast<uint32_t>(s.airIndex + 0.5f));
+  if (s.airValid) w.unum("air_index", airIndex(s.gasVolts));
   if (s.envValid) {
     w.flt("temperature", s.temperature, 1);
     w.flt("humidity", s.humidity, 0);

@@ -1,7 +1,8 @@
-// MQ-135 signal chain, calibration, environment monitor, buzzer, display logic.
+// MQ-135 signal chain, environment monitor, buzzer, display logic.
 #include <string.h>
 
 #include "../../src/actuators/buzzer_pattern.h"
+#include "../../src/communication/message_protocol.h"
 #include "../../src/display/screen_logic.h"
 #include "../../src/monitoring/air_quality_monitor.h"
 #include "../../src/monitoring/environment_monitor.h"
@@ -9,149 +10,116 @@
 #include "../../src/utils/text_utils.h"
 #include "test_framework.h"
 
-// ---- MQ-135 math -----------------------------------------------------------
+// ---- MQ-135 (alarm by AO voltage) ----------------------------------------
+// ADC count that the ESP32 reports for a given AO voltage (inverse of the chain).
+static uint16_t rawFor(float vao) {
+  const float vPin = vao * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
+  return static_cast<uint16_t>(vPin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
+}
+
 TEST(mq135_voltage_chain) {
   CHECK_NEAR(AirQualityMonitor::adcToVoltage(4095), 3.30, 1e-4);
   CHECK_NEAR(AirQualityMonitor::adcToVoltage(0), 0.0, 1e-6);
   // Divider undone: V_AO = V_pin * (Rtop + Rbottom) / Rbottom
   const float k = mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
   CHECK_NEAR(AirQualityMonitor::pinToSensorVoltage(5.0f * k), 5.0, 0.01);
-  // Installed divider 10k / 2x10k (series): 5.0 V at AO -> 3.333 V at GP29
+  // Installed divider 10k / 2x10k (series): 5.0 V at AO -> 3.333 V at the pin
   CHECK_NEAR(5.0f * k, 3.333, 0.01);
 }
 
-TEST(mq135_rs_formula) {
-  // RL = 10k, Vc = 5 V. Vout = 2.5 V -> Rs = RL
-  CHECK_NEAR(AirQualityMonitor::computeRs(2.5f), 10000, 1);
-  CHECK_NEAR(AirQualityMonitor::computeRs(1.0f), 40000, 1);
-  CHECK(AirQualityMonitor::computeRs(0.0f) < 0);
-  CHECK(AirQualityMonitor::computeRs(5.0f) < 0);
+TEST(mq135_alarm_voltage_follows_ao) {
+  AirQualityMonitor m;
+  m.begin(0);
+  m.skipWarmup();
+  for (int i = 0; i < 20; ++i) m.addSample(rawFor(2.5f));
+  CHECK(m.usable(20000));
+  CHECK_NEAR(m.last().vAo, 2.5, 0.01);
+  CHECK_NEAR(m.last().vAlarm, 2.5, 0.01);
 }
 
-TEST(mq135_index_from_ratio) {
-  CHECK_NEAR(AirQualityMonitor::indexFromRatio(1.0f), 0, 1e-6);
-  CHECK_NEAR(AirQualityMonitor::indexFromRatio(1.4f), 0, 1e-6);   // cleaner than reference
-  CHECK_NEAR(AirQualityMonitor::indexFromRatio(0.7f), 30, 1e-4);
-  CHECK_NEAR(AirQualityMonitor::indexFromRatio(0.15f), 85, 1e-4);
-  CHECK_NEAR(AirQualityMonitor::indexFromRatio(-1), 0, 1e-6);
-}
-
-TEST(mq135_compensation_near_unity_at_reference) {
-  CHECK_NEAR(AirQualityMonitor::compensationFactor(20, 33), 1.0, 0.01);
-}
-
-static uint16_t adcForRs(float rs) {
-  // inverse of the chain: Vout = Vc*RL/(Rs+RL); pin = Vout*R2/(R1+R2)
-  float vout = mq135::CIRCUIT_VOLTAGE * mq135::LOAD_RESISTANCE / (rs + mq135::LOAD_RESISTANCE);
-  float vpin = vout * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
-  return (uint16_t)(vpin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
+TEST(mq135_air_index_on_the_radio_is_ao_percent) {
+  CHECK_EQ(proto::airIndex(2.5f), 50u);
+  CHECK_EQ(proto::airIndex(0.26f), 5u);
+  CHECK_EQ(proto::airIndex(9.0f), 100u);  // clamped
+  CHECK_EQ(proto::airIndex(-1.0f), 0u);
 }
 
 TEST(mq135_warmup_blocks_usage) {
   AirQualityMonitor m;
-  m.begin(0, 30000, true);
-  m.addSample(adcForRs(30000), 20, 33, true, 1000);
+  m.begin(0);
+  m.addSample(rawFor(0.5f));
   CHECK(m.warmingUp(1000));
   CHECK(!m.usable(1000));
   CHECK(m.usable(cfg::MQ135_WARMUP_MS + 1));
 }
 
-TEST(mq135_uncalibrated_not_usable) {
+TEST(mq135_follows_a_gas_step_at_once) {
+  // Bench case: clean 0.45 V, gas brings AO to 3.0 V. Instant attack: the
+  // alarm value must pass 2.5 V on the first sample.
   AirQualityMonitor m;
-  m.begin(0, 0, false);
+  m.begin(0);
   m.skipWarmup();
-  m.addSample(adcForRs(30000), 20, 33, true, 1000);
-  CHECK(!m.calibrated());
-  CHECK(!m.usable(1000));
-}
-
-TEST(mq135_index_follows_rs_drop) {
-  AirQualityMonitor m;
-  m.begin(0, 30000, true);
-  m.skipWarmup();
-  uint32_t now = 0;
-  for (int i = 0; i < 20; ++i, now += 1000) m.addSample(adcForRs(30000), 20, 33, true, now);
-  CHECK_NEAR(m.last().index, 0, 2);
-  for (int i = 0; i < 40; ++i, now += 1000) m.addSample(adcForRs(15000), 20, 33, true, now);
-  CHECK_NEAR(m.last().ratio, 0.5, 0.03);
-  CHECK_NEAR(m.last().index, 50, 3);
-}
-
-TEST(mq135_median_rejects_single_spike) {
-  AirQualityMonitor m;
-  m.begin(0, 30000, true);
-  m.skipWarmup();
-  uint32_t now = 0;
-  for (int i = 0; i < 10; ++i, now += 1000) m.addSample(adcForRs(30000), 20, 33, true, now);
-  m.addSample(adcForRs(3000), 20, 33, true, now);  // one-sample spike
-  CHECK(m.last().index < 3);
+  for (int i = 0; i < 10; ++i) m.addSample(rawFor(0.45f));
+  m.addSample(rawFor(3.0f));
+  CHECK(m.last().vAlarm >= 2.5f);
 }
 
 TEST(mq135_open_circuit_fault) {
   AirQualityMonitor m;
-  m.begin(0, 30000, true);
+  m.begin(0);
   m.skipWarmup();
-  uint32_t now = 0;
-  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i, now += 1000) m.addSample(0, 20, 33, true, now);
+  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i) m.addSample(0);
   CHECK(m.faulted());
-  CHECK(!m.usable(now));
-  for (int i = 0; i < cfg::MQ135_OK_TO_CLEAR; ++i, now += 200) m.addSample(adcForRs(30000), 20, 33, true, now);
-  CHECK(!m.faulted());  // recovers after MQ135_OK_TO_CLEAR good samples
+  CHECK(!m.usable(0));
 }
 
-TEST(mq135_saturated_fault) {
+TEST(mq135_fault_needs_consecutive_good_samples_to_clear) {
+  // Bench case: AO open -> ADC at the floor, with an occasional noisy sample
+  // just above it. The fault must not flap on each noisy sample.
   AirQualityMonitor m;
-  m.begin(0, 30000, true);
+  m.begin(0);
   m.skipWarmup();
-  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i) m.addSample(4095, 20, 33, true, i * 1000);
+  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i) m.addSample(0);
   CHECK(m.faulted());
+  m.addSample(1500);   // one good-looking sample
+  CHECK(m.faulted());  // still faulted
+  for (int i = 0; i < cfg::MQ135_OK_TO_CLEAR; ++i) m.addSample(1500);
+  CHECK(!m.faulted());
 }
 
-TEST(mq135_calibration_success) {
+TEST(mq135_saturated_pin_is_strong_gas_not_fault) {
+  // With the 10k/20k divider the pin saturates only under STRONG gas.
   AirQualityMonitor m;
-  m.begin(0, 0, false);
+  m.begin(0);
   m.skipWarmup();
-  m.addSample(adcForRs(42000), 20, 33, true, 0);
-  CHECK(m.startCalibration(0));
-  uint32_t now = 1000;
-  for (; now <= mq135::CAL_DURATION_MS + 1000; now += 1000)
-    m.addSample(adcForRs((now / 1000) % 2 ? 41500 : 42500), 20, 33, true, now);
-  CHECK(m.calState() == CalState::Done);
-  CHECK_NEAR(m.r0(), 42000, 600);
-  float r0 = 0;
-  CHECK(m.takeNewR0(r0));
-  CHECK(!m.takeNewR0(r0));
-  CHECK(m.calibrated());
+  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i) m.addSample(4095);
+  CHECK(!m.faulted());
+  CHECK(m.last().vAlarm > 4.9f);
 }
 
-TEST(mq135_calibration_unstable_fails) {
-  AirQualityMonitor m;
-  m.begin(0, 0, false);
-  m.skipWarmup();
-  m.addSample(adcForRs(30000), 20, 33, true, 0);
-  m.startCalibration(0);
-  for (uint32_t now = 1000; now <= mq135::CAL_DURATION_MS + 1000; now += 1000)
-    m.addSample(adcForRs((now / 1000) % 2 ? 20000 : 40000), 20, 33, true, now);
-  CHECK(m.calState() == CalState::Failed);
-  CHECK(m.calError() == CalError::Unstable);
-  CHECK(!m.calibrated());
-}
-
-TEST(mq135_calibration_refused_during_warmup) {
-  AirQualityMonitor m;
-  m.begin(0, 0, false);
-  m.addSample(adcForRs(30000), 20, 33, true, 0);
-  CHECK(!m.startCalibration(1000));
-  CHECK(m.calError() == CalError::NotReady);
+TEST(mq135_gas_thresholds_in_volts) {
+  HysteresisClassifier c(thr::GAS_VOLTS);
+  CHECK(c.update(0.21f) == Severity::Normal);   // clean air on the bench
+  CHECK(c.update(0.58f) == Severity::Normal);   // was a false MEDIUM with 0.30 V
+  CHECK(c.update(0.89f) == Severity::Normal);
+  CHECK(c.update(0.91f) == Severity::Medium);   // no LOW: MEDIUM from 0.90 V
+  CHECK(c.update(1.20f) == Severity::Medium);   // MEDIUM band 0.90-1.5 V
+  CHECK(c.update(1.49f) == Severity::Medium);
+  CHECK(c.update(1.55f) == Severity::High);     // HIGH from 1.5 V
+  CHECK(c.update(1.47f) == Severity::High);     // within 0.05 V hysteresis
+  CHECK(c.update(1.40f) == Severity::Medium);
+  CHECK(c.update(0.86f) == Severity::Medium);   // stays until < 0.85 V
+  CHECK(c.update(0.84f) == Severity::Normal);   // never passes through LOW
 }
 
 TEST(mq135_simulation_override) {
   AirQualityMonitor m;
-  m.begin(0, 0, false);
-  m.simulateIndex(true, 60);
-  m.addSample(1000, 20, 33, true, 0);
+  m.begin(0);  // still warming up, no sensor
+  m.simulateVolts(true, 1.2f);
+  m.addSample(0);
   CHECK(m.usable(0));
-  CHECK_NEAR(m.last().index, 60, 1e-4);
+  CHECK_NEAR(m.last().vAlarm, 1.2, 1e-4);
+  CHECK(m.last().simulated);
   m.simulateFault(true);
   CHECK(!m.usable(0));
 }
@@ -159,21 +127,21 @@ TEST(mq135_simulation_override) {
 // ---- Environment -----------------------------------------------------------
 TEST(env_fault_after_consecutive_failures) {
   EnvironmentMonitor e;
-  e.addReading(true, 25, 50, 0);
+  e.addReading(true, 25, 50);
   CHECK(e.valid());
-  for (int i = 0; i < cfg::ENV_FAIL_LIMIT; ++i) e.addReading(false, NAN, NAN, 0);
+  for (int i = 0; i < cfg::ENV_FAIL_LIMIT; ++i) e.addReading(false, NAN, NAN);
   CHECK(e.faulted());
   CHECK(!e.valid());
   CHECK_NEAR(e.temperature(), 25, 1e-6);  // last good value kept for display
-  e.addReading(true, 26, 50, 0);
+  e.addReading(true, 26, 50);
   CHECK(!e.faulted());
 }
 
 TEST(env_implausible_values_rejected) {
   EnvironmentMonitor e;
-  e.addReading(true, 150, 50, 0);
+  e.addReading(true, 150, 50);
   CHECK(!e.valid());
-  e.addReading(true, 25, 120, 0);
+  e.addReading(true, 25, 120);
   CHECK(!e.valid());
 }
 
@@ -181,7 +149,7 @@ TEST(env_simulation) {
   EnvironmentMonitor e;
   e.simulateTemperature(true, 35);
   e.simulateHumidity(true, 80);
-  e.addReading(false, NAN, NAN, 0);   // hardware absent
+  e.addReading(false, NAN, NAN);   // hardware absent
   CHECK(e.valid());
   CHECK_NEAR(e.temperature(), 35, 1e-6);
   CHECK(e.apparent() > 35);
@@ -233,7 +201,7 @@ TEST(text_wrap) {
 
 TEST(remote_message_exactly_3_seconds) {
   RemoteMessageDisplay d;
-  CHECK(d.push("WHATSAPP_GATEWAY", "Teste", 1000));
+  CHECK(d.push("WHATSAPP_GATEWAY", "Teste"));
   d.update(1000, false);
   CHECK(d.active());
   CHECK_STR(d.line(0), "Teste");
@@ -251,8 +219,8 @@ TEST(remote_message_pages_and_queue) {
   const char* longTxt =
       "palavragrand palavragrand palavragrand palavragrand palavragrand palavragrand "
       "palavragrand palavragrand palavragrand";
-  d.push("G", longTxt, 0);
-  d.push("G", "segunda", 0);
+  d.push("G", longTxt);
+  d.push("G", "segunda");
   d.update(0, false);
   CHECK_EQ(d.pages(), 2);
   d.update(3000, false);
@@ -266,8 +234,8 @@ TEST(remote_message_pages_and_queue) {
 
 TEST(remote_message_cannot_hide_high_alert) {
   RemoteMessageDisplay d;
-  d.push("G", "um", 0);
-  d.push("G", "dois", 0);
+  d.push("G", "um");
+  d.push("G", "dois");
   d.update(0, true);
   CHECK(d.active());
   d.update(3000, true);         // first ends; HIGH -> alert screen gap
@@ -284,74 +252,4 @@ TEST(screen_priority) {
   CHECK(selectScreen(false, Severity::Low, false) == Screen::Alert);
   CHECK(selectScreen(false, Severity::Normal, false) == Screen::Main);
   CHECK(selectScreen(false, Severity::Medium, true) == Screen::Message);
-}
-
-// ---- voltage alert mode (cfg::AIR_ALERT_BY_VOLTAGE) -------------------------
-TEST(mq135_voltage_mode_index_is_ao_percent) {
-  AirQualityMonitor m;
-  m.setVoltageMode(true);
-  m.begin(0, 0, false);  // NOT calibrated
-  m.skipWarmup();
-  // AO = 2.5 V -> pin = 2.5 * Rb / (Rt + Rb)
-  const float vPin = 2.5f * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
-  const uint16_t raw = static_cast<uint16_t>(vPin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
-  for (int i = 0; i < 20; ++i) m.addSample(raw, 20, 33, false, 1000u * i);
-  CHECK(m.usable(20000));  // usable without R0
-  CHECK_NEAR(m.last().vFiltered, 2.5, 0.01);
-  CHECK_NEAR(m.last().index, 50.0, 0.3);
-}
-
-TEST(mq135_voltage_thresholds_map_volts) {
-  HysteresisClassifier c(thr::AIR_VOLTAGE);
-  auto v = [](float volts) { return 100.0f * volts / 5.0f; };
-  CHECK(c.update(v(0.21f)) == Severity::Normal);   // clean air on the bench
-  CHECK(c.update(v(0.58f)) == Severity::Normal);   // was a false MEDIUM with 0.30 V
-  CHECK(c.update(v(0.89f)) == Severity::Normal);
-  CHECK(c.update(v(0.91f)) == Severity::Medium);   // no LOW: MEDIUM from 0.90 V
-  CHECK(c.update(v(1.20f)) == Severity::Medium);   // MEDIUM band 0.90-1.5 V
-  CHECK(c.update(v(1.49f)) == Severity::Medium);
-  CHECK(c.update(v(1.55f)) == Severity::High);     // HIGH from 1.5 V
-  CHECK(c.update(v(1.47f)) == Severity::High);     // within 0.05 V hysteresis
-  CHECK(c.update(v(1.40f)) == Severity::Medium);
-  CHECK(c.update(v(0.86f)) == Severity::Medium);   // stays until < 0.85 V
-  CHECK(c.update(v(0.84f)) == Severity::Normal);   // never passes through LOW
-}
-
-TEST(mq135_voltage_from_rs_inverts_rs_formula) {
-  const float rs = AirQualityMonitor::computeRs(1.2f);
-  CHECK_NEAR(AirQualityMonitor::voltageFromRs(rs), 1.2, 1e-3);
-}
-
-TEST(mq135_voltage_mode_follows_a_gas_step_quickly) {
-  // Bench case: clean 0.45 V, gas brings AO to 3.0 V. The alarm value must
-  // pass 2.5 V within a few seconds (it lagged ~20 s when Rs was averaged).
-  AirQualityMonitor m;
-  m.setVoltageMode(true);
-  m.begin(0, 0, false);
-  m.skipWarmup();
-  auto rawFor = [](float vao) {
-    const float vPin = vao * mq135::DIVIDER_R_BOTTOM / (mq135::DIVIDER_R_TOP + mq135::DIVIDER_R_BOTTOM);
-    return static_cast<uint16_t>(vPin / mq135::ADC_VREF * mq135::ADC_MAX_COUNTS + 0.5f);
-  };
-  uint32_t t = 0;
-  for (int i = 0; i < 10; ++i, t += 1000) m.addSample(rawFor(0.45f), 20, 33, false, t);
-  int secs = 0;
-  while (m.last().vFiltered < 2.5f && secs < 30) { m.addSample(rawFor(3.0f), 20, 33, false, t); t += 1000; ++secs; }
-  CHECK(secs <= 1);  // instant attack: first sample above the threshold
-  CHECK(m.last().index >= 50.0f);
-}
-
-TEST(mq135_fault_needs_consecutive_good_samples_to_clear) {
-  // Bench case: AO open -> ADC at the floor, with an occasional noisy sample
-  // just above it. The fault must not flap on each noisy sample.
-  AirQualityMonitor m;
-  m.begin(0, 0, false);
-  m.skipWarmup();
-  uint32_t t = 0;
-  for (int i = 0; i < cfg::MQ135_FAIL_LIMIT; ++i, t += 200) m.addSample(0, 20, 33, false, t);
-  CHECK(m.faulted());
-  m.addSample(1500, 20, 33, false, t); t += 200;   // one good-looking sample
-  CHECK(m.faulted());                             // still faulted
-  for (int i = 0; i < cfg::MQ135_OK_TO_CLEAR; ++i, t += 200) m.addSample(1500, 20, 33, false, t);
-  CHECK(!m.faulted());
 }

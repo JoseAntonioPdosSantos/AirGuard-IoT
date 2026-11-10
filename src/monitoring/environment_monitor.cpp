@@ -8,7 +8,7 @@
 
 bool EnvironmentMonitor::faulted() const { return failCount_ >= cfg::ENV_FAIL_LIMIT; }
 
-void EnvironmentMonitor::addReading(bool ok, float t, float h, uint32_t) {
+void EnvironmentMonitor::addReading(bool ok, float t, float h) {
   if (simTempOn_) t = simTemp_;
   if (simHumOn_) h = simHum_;
   if (simTempOn_ && simHumOn_) ok = true;  // fully simulated: no hardware needed
@@ -23,7 +23,6 @@ void EnvironmentMonitor::addReading(bool ok, float t, float h, uint32_t) {
   }
   failCount_ = 0;
   valid_ = true;
-  everValid_ = true;
   temp_ = t;
   hum_ = h;
   heatIndex_ = heatIndexC(t, h);

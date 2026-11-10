@@ -62,6 +62,10 @@ class JsonWriter {
   bool ok_ = true, first_ = true;
 };
 
+// "air_index" sent on the radio: MQ-135 AO voltage in % of 5 V (0..100),
+// rounded. The receiver converts it back to volts (index / 20).
+uint32_t airIndex(float gasVolts);
+
 // Encoders return the payload length (0 = did not fit / invalid).
 size_t encodeEvent(const AlertEvent& e, const char* device, const char* dst, char* buf,
                    size_t cap);

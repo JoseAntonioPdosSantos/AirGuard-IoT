@@ -18,23 +18,25 @@
 // as the boot counter is persisted (see utils/persistent_store).
 class EventIdGenerator {
  public:
-  explicit EventIdGenerator(uint16_t bootCount) : boot_(bootCount) {}
+  void setBootCount(uint16_t bootCount) { boot_ = bootCount; seq_ = 0; }
   uint32_t next() {
     if (++seq_ == 0) seq_ = 1;
     return (static_cast<uint32_t>(boot_) << 16) | seq_;
   }
  private:
-  uint16_t boot_;
+  uint16_t boot_ = 0;
   uint16_t seq_ = 0;
 };
 
 class AlertManager {
  public:
-  explicit AlertManager(uint16_t bootCount, const ThresholdSet& airThresholds = thr::AIR_QUALITY);
+  explicit AlertManager(uint16_t bootCount = 0, const ThresholdSet& gasThresholds = thr::GAS_VOLTS);
+  // Persisted boot counter (read at setup) -> event ids unique across reboots.
+  void setBootCount(uint16_t bootCount) { ids_.setBootCount(bootCount); }
 
   // usable=false -> the category keeps its last confirmed level (a bad
   // reading is never interpreted as "normal").
-  void updateAir(bool usable, float airIndex, uint32_t nowMs);
+  void updateAir(bool usable, float gasVolts, uint32_t nowMs);
   void updateEnvironment(bool usable, float tempC, float apparentC, float rh, uint32_t nowMs);
   void setSystemFlags(uint16_t flags, uint32_t nowMs);
   void setSnapshot(const SensorSnapshot& s) { snapshot_ = s; }
@@ -48,7 +50,6 @@ class AlertManager {
   void announceRestored(uint32_t nowMs);
 
   bool popEvent(AlertEvent& out);
-  uint8_t pendingEvents() const { return count_; }
 
   Severity category(Category c) const { return confirmed_[static_cast<uint8_t>(c)]; }
   Severity overall() const;
@@ -78,5 +79,4 @@ class AlertManager {
   AlertEvent queue_[QUEUE];
   uint8_t head_ = 0, count_ = 0;
   uint32_t generated_ = 0;
-  uint32_t dropped_ = 0;
 };

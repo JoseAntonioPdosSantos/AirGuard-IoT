@@ -20,18 +20,16 @@ constexpr uint8_t MSG_MAX_LINES = 12;      // 2 pages
 class RemoteMessageDisplay {
  public:
   // utf8 text from the protocol layer; sanitised and wrapped here.
-  bool push(const char* sender, const char* utf8, uint32_t nowMs);
+  bool push(const char* sender, const char* utf8);
   // Advance timers. `criticalActive` enforces the HIGH alert gap.
   void update(uint32_t nowMs, bool criticalActive);
 
   bool active() const { return active_; }
   uint8_t page() const { return page_; }
   uint8_t pages() const { return pages_; }
-  uint8_t queued() const { return count_; }
   const char* sender() const { return cur_.sender; }
   // Line i (0..MSG_LINES_PER_PAGE-1) of the current page ("" if none).
   const char* line(uint8_t i) const;
-  uint32_t shownSinceMs(uint32_t nowMs) const { return nowMs - pageStartMs_; }
 
  private:
   struct Item {

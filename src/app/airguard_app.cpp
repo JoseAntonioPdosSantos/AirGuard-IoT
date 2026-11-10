@@ -1,19 +1,14 @@
 #include "airguard_app.h"
 
 #include <Arduino.h>
-#include <Wire.h>
-#include <new>
 #include <string.h>
 
 #include "../config/config.h"
-#include "../config/hardware_pins.h"
 #include "../platform/board.h"
 #include "../utils/logger.h"
 #include "../utils/persistent_store.h"
 
 namespace {
-
-alignas(AlertManager) uint8_t g_alertStorage[sizeof(AlertManager)];
 
 constexpr uint8_t PRIO_ACK = 6;
 constexpr uint32_t ACK_ID_TAG = 0xF0000000UL;  // ids of our ACK replies (never events)
@@ -63,11 +58,9 @@ void AirGuardApp::setup() {
   // 2) Persistent state -> unique event ids across reboots.
   store::begin();
   const uint16_t boot = store::incrementBoot();
-  alerts_ = new (g_alertStorage)
-      AlertManager(boot, cfg::AIR_ALERT_BY_VOLTAGE ? thr::AIR_VOLTAGE : thr::AIR_QUALITY);
+  alerts_.setBootCount(boot);
   const PersistedState& st = store::state();
-  LOGI("BOOT", "boot #%u, R0 %s (%.0f ohm), HIGH mask 0x%02X", boot,
-       st.r0Valid ? "stored" : "NOT calibrated", st.r0, st.highMask);
+  LOGI("BOOT", "boot #%u, HIGH mask 0x%02X", boot, st.highMask);
 
   // 3) Buses and peripherals (each may fail independently).
   board::i2cBegin(cfg::I2C_CLOCK_HZ);
@@ -75,22 +68,20 @@ void AirGuardApp::setup() {
   oled_.render(DisplayModel{});  // boot screen
 
   mq_.begin();
-  air_.setVoltageMode(cfg::AIR_ALERT_BY_VOLTAGE);
-  air_.begin(bootMs_, st.r0, st.r0Valid != 0);
+  air_.begin(bootMs_);
   if (cfg::DEV_SKIP_MQ135_WARMUP) {
     air_.skipWarmup();
     LOGW("BOOT", "DEV: MQ-135 warm-up DISABLED (cfg::DEV_SKIP_MQ135_WARMUP) - not for deployment");
   }
-  if (cfg::AIR_ALERT_BY_VOLTAGE)
-    LOGI("BOOT", "MQ-135 alerts by AO voltage: LOW %.1f V, MEDIUM %.1f V, HIGH %.1f V",
-         thr::AO_LOW_V, thr::AO_MEDIUM_V, thr::AO_HIGH_V);
+  LOGI("BOOT", "MQ-135 alarm by AO voltage: MEDIUM %.2f V, HIGH %.2f V",
+       thr::GAS_VOLTS.above.medium, thr::GAS_VOLTS.above.high);
   envSensor_.begin();
   lora_.begin();  // RYLR998 init runs in the background (reset + AT configuration)
 
   // 4) Reboot during a critical condition: re-arm HIGH until proven normal.
   savedHighMask_ = st.highMask;
   if (cfg::RESTORE_HIGH_AFTER_REBOOT && st.highMask) {
-    alerts_->restoreHigh(st.highMask, bootMs_);
+    alerts_.restoreHigh(st.highMask, bootMs_);
     LOGW("BOOT", "restored HIGH state (mask 0x%02X) from before the reboot", st.highMask);
   }
 
@@ -122,7 +113,7 @@ void AirGuardApp::taskSensors(uint32_t now) {
     lastEnvMs_ = now == 0 ? 1 : now;
     const EnvReading r = envSensor_.read();
     const bool wasFault = env_.faulted();
-    env_.addReading(r.ok, r.temperature, r.humidity, now);
+    env_.addReading(r.ok, r.temperature, r.humidity);
     envSampleNew_ = true;
     if (!r.ok && !env_.simulating()) LOGD("ENV", "%s read failed", envSensor_.model());
     if (env_.faulted() && !wasFault) LOGE("ENV", "%s FAULT (consecutive failures)", envSensor_.model());
@@ -132,40 +123,19 @@ void AirGuardApp::taskSensors(uint32_t now) {
   if ((uint32_t)(now - lastAirMs_) >= cfg::MQ135_SAMPLE_PERIOD_MS) {
     lastAirMs_ = now;
     const bool wasFault = air_.faulted();
-    air_.addSample(mq_.readRaw(), env_.temperature(), env_.humidity(), env_.valid(), now);
+    air_.addSample(mq_.readRaw());
     airSampleNew_ = true;
     if (air_.faulted() && !wasFault)
       LOGE("AIR", "MQ-135 FAULT: ADC %u out of valid range", air_.last().raw);
     if (!air_.faulted() && wasFault) LOGI("AIR", "MQ-135 readings recovered");
-
-    // Calibration progress / result.
-    const CalState cs = air_.calState();
-    if (cs != lastCalState_) {
-      if (cs == CalState::Done)
-        LOGI("CAL", "done: R0 = %.0f ohm (CV %.3f)", air_.r0(), air_.calCv());
-      else if (cs == CalState::Failed)
-        LOGE("CAL", "FAILED (error %u, CV %.3f). Keep the sensor in clean air and retry.",
-             static_cast<unsigned>(air_.calError()), air_.calCv());
-      lastCalState_ = cs;
-    }
-    float r0;
-    if (air_.takeNewR0(r0)) store::setR0(r0);
   }
 }
 
 SensorSnapshot AirGuardApp::snapshot(uint32_t now) const {
   SensorSnapshot s;
-  const AirSample& a = air_.last();
-  const bool usable = air_.usable(now);
-  s.airValid = a.valid || usable;
-  s.airWarmingUp = !usable && air_.warmingUp(now);
-  s.airCalibrated = air_.calibrated() || usable;
-  s.rawAdc = a.raw;
-  s.adcVoltage = a.vAdc;
-  s.sensorVoltage = a.vSensor;
-  s.rs = a.rsFiltered;
-  s.ratio = a.ratio;
-  s.airIndex = a.index;
+  s.airValid = air_.usable(now);
+  s.rawAdc = air_.last().raw;
+  s.gasVolts = air_.last().vAlarm;
   s.envValid = env_.valid();
   s.temperature = env_.temperature();
   s.humidity = env_.humidity();
@@ -173,12 +143,10 @@ SensorSnapshot AirGuardApp::snapshot(uint32_t now) const {
   return s;
 }
 
-uint16_t AirGuardApp::computeSystemFlags(uint32_t now) const {
+uint16_t AirGuardApp::computeSystemFlags() const {
   uint16_t f = 0;
   if (env_.faulted()) f |= SYS_ENV_SENSOR_FAULT;
   if (air_.faulted()) f |= SYS_AIR_SENSOR_FAULT;
-  if (!cfg::AIR_ALERT_BY_VOLTAGE && !air_.calibrated() && !air_.warmingUp(now) && !air_.usable(now))
-    f |= SYS_MQ135_UNCAL;
   if (loraFaultLatched_) f |= SYS_LORA_RADIO_FAULT;
   if (!ack_.linkHealthy()) f |= SYS_LORA_NO_ACK;
   if (!oled_.ok()) f |= SYS_DISPLAY_FAULT;
@@ -187,17 +155,17 @@ uint16_t AirGuardApp::computeSystemFlags(uint32_t now) const {
 
 // ---------------------------------------------------------------------------
 void AirGuardApp::taskAlerts(uint32_t now) {
-  AlertManager& al = *alerts_;
+  AlertManager& al = alerts_;
   al.setSnapshot(snapshot(now));
   if (airSampleNew_) {
     airSampleNew_ = false;
-    al.updateAir(air_.usable(now), air_.last().index, now);
+    al.updateAir(air_.usable(now), air_.last().vAlarm, now);
   }
   if (envSampleNew_) {
     envSampleNew_ = false;
     al.updateEnvironment(env_.valid(), env_.temperature(), env_.apparent(), env_.humidity(), now);
   }
-  al.setSystemFlags(computeSystemFlags(now), now);
+  al.setSystemFlags(computeSystemFlags(), now);
   al.tick(now);
 
   if (!restoreAnnounced_ && (uint32_t)(now - bootMs_) >= cfg::ENV_SAMPLE_PERIOD_MS) {
@@ -316,7 +284,7 @@ void AirGuardApp::queueHeartbeat(uint32_t now) {
   if ((uint32_t)(now - lastHeartbeatMs_) < cfg::HEARTBEAT_PERIOD_MS) return;
   lastHeartbeatMs_ = now;
   Severity lv[CATEGORY_COUNT];
-  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) lv[i] = alerts_->category(static_cast<Category>(i));
+  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) lv[i] = alerts_.category(static_cast<Category>(i));
   char buf[cfg::LORA_MAX_PAYLOAD + 1];
   const size_t n = proto::encodeHeartbeat(cfg::DEVICE_ID, cfg::GATEWAY_ID, ++heartbeatSeq_, lv,
                                           snapshot(now), now / 1000, buf, sizeof buf);
@@ -378,14 +346,14 @@ void AirGuardApp::handleFrame(const uint8_t* data, size_t len, float rssi, float
   }
   LOGI("RX", "TEXT #%lu from %s (RSSI %.0f dBm): \"%s\"", static_cast<unsigned long>(m.id),
        m.sender, rssi, m.text);
-  if (msgs_.push(m.sender, m.text, now)) ++textShown_;
+  if (msgs_.push(m.sender, m.text)) ++textShown_;
   else LOGW("RX", "message queue full or empty text: not displayed");
   sendAck(m.sender, m.id, now);
 }
 
 // ---------------------------------------------------------------------------
 void AirGuardApp::taskOutputs(uint32_t now) {
-  const AlertManager& al = *alerts_;
+  const AlertManager& al = alerts_;
   const Severity overall = al.overall();
   buzzer_.setSeverity(overall, now);
   relay_.set(al.relayDemand(), now);
@@ -412,7 +380,7 @@ void AirGuardApp::taskOutputs(uint32_t now) {
 }
 
 void AirGuardApp::taskDisplay(uint32_t now) {
-  const AlertManager& al = *alerts_;
+  const AlertManager& al = alerts_;
   msgs_.update(now, al.overall() == Severity::High);
   oled_.checkBus(now);
   oled_.retry(now);
@@ -429,18 +397,11 @@ void AirGuardApp::taskDisplay(uint32_t now) {
   d.humidity = env_.humidity();
   d.heatIndex = env_.heatIndex();
   d.envFault = env_.faulted();
-  d.airUsable = air_.usable(now);
-  d.airWarmingUp = !d.airUsable && air_.warmingUp(now);
-  d.warmupLeftS = air_.warmupRemainingMs(now) / 1000;
-  d.airCalibrated = air_.calibrated() || d.airUsable;
+  d.airWarmingUp = !air_.usable(now) && air_.warmingUp(now);
   d.airFault = air_.faulted();
-  d.calibrating = air_.calState() == CalState::Running;
-  d.calPercent = static_cast<uint8_t>(air_.calProgress(now) * 100);
   d.simulation = air_.simulating() || env_.simulating();
-  d.airIndex = air_.last().index;
-  d.airAoVolts = air_.last().vSensor;
-  d.airAoValid = air_.last().raw > 0;
-  d.airSeverity = al.category(Category::AirQuality);
+  d.airAoVolts = air_.last().vAo;
+  d.airAoValid = air_.last().raw > 0 || air_.last().simulated;
   d.worst = al.worstCategory();
   for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) d.perCategory[i] = al.category(static_cast<Category>(i));
   d.systemFlags = al.systemFlags();
@@ -461,14 +422,14 @@ void AirGuardApp::taskStatusLog(uint32_t now) {
 }
 
 void AirGuardApp::printStatus(uint32_t now) {
-  const AlertManager& al = *alerts_;
+  const AlertManager& al = alerts_;
   const AirSample& a = air_.last();
-  LOGI("STAT", "T=%.1fC RH=%.0f%% HI=%.1fC env=%s | ADC=%u Vpin=%.3fV Vao=%.3fV Rs=%.0f "
-       "Rs/R0=%.3f idx=%.1f air=%s%s",
+  LOGI("STAT", "T=%.1fC RH=%.0f%% HI=%.1fC env=%s | ADC=%u Vpin=%.3fV Vao=%.3fV Valarm=%.3fV "
+       "idx=%u air=%s%s",
        env_.temperature(), env_.humidity(), env_.heatIndex(),
-       env_.faulted() ? "FAULT" : (env_.valid() ? "ok" : "invalid"), a.raw, a.vAdc, a.vSensor,
-       a.rsFiltered, a.ratio, a.index,
-       air_.faulted() ? "FAULT" : (air_.warmingUp(now) ? "WARMUP" : (air_.usable(now) ? "ok" : "UNCAL")),
+       env_.faulted() ? "FAULT" : (env_.valid() ? "ok" : "invalid"), a.raw, a.vPin, a.vAo,
+       a.vAlarm, static_cast<unsigned>(proto::airIndex(a.vAlarm)),
+       air_.faulted() ? "FAULT" : (air_.warmingUp(now) ? "WARMUP" : (air_.usable(now) ? "ok" : "invalid")),
        air_.simulating() ? " SIM" : "");
   LOGI("STAT", "sev AIR=%s TEMP=%s HUM=%s SYS=%s (flags 0x%02X) | relay=%s buzzer=%s | "
        "LoRa=%s queue=%u waitACK=%u",
@@ -490,7 +451,7 @@ void AirGuardApp::printStats() {
        (unsigned long)lora_.rxFrames(), (unsigned long)lora_.crcErrors(),
        (unsigned long)lora_.rxOverruns(), (unsigned long)rxRejected_,
        (unsigned long)rxDuplicates_, (unsigned long)textShown_,
-       (unsigned long)alerts_->eventsGenerated());
+       (unsigned long)alerts_.eventsGenerated());
 }
 
 // ---------------------------------------------------------------------------

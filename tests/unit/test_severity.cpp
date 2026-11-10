@@ -3,8 +3,11 @@
 #include "../../src/monitoring/severity_logic.h"
 #include "test_framework.h"
 
+// Generic 0..100 scale used to test the classifier itself (15 / 30 / 50, hyst 5).
+static const ThresholdSet kScale = {{true, 15.0f, 30.0f, 50.0f}, {false, 0, 0, 0}, 5.0f};
+
 TEST(classifier_air_levels) {
-  HysteresisClassifier c(thr::AIR_QUALITY);  // 15 / 30 / 50, hyst 5
+  HysteresisClassifier c(kScale);
   CHECK(c.update(0) == Severity::Normal);
   c.reset(); CHECK(c.update(15) == Severity::Low);
   c.reset(); CHECK(c.update(30) == Severity::Medium);
@@ -13,7 +16,7 @@ TEST(classifier_air_levels) {
 }
 
 TEST(classifier_value_hysteresis) {
-  HysteresisClassifier c(thr::AIR_QUALITY);
+  HysteresisClassifier c(kScale);
   CHECK(c.update(31) == Severity::Medium);
   CHECK(c.update(28) == Severity::Medium);   // > 30-5 -> stays
   CHECK(c.update(25.5f) == Severity::Medium);
@@ -54,7 +57,7 @@ TEST(classifier_humidity) {
 }
 
 TEST(classifier_nan_is_not_classified) {
-  HysteresisClassifier c(thr::AIR_QUALITY);
+  HysteresisClassifier c(kScale);
   CHECK(c.update(NAN) == Severity::Normal);  // caller must not feed invalid data
 }
 

@@ -1,7 +1,10 @@
 // Alert state machine: events, recovery, reminders, relay policy, faults.
 #include "../../src/monitoring/alert_manager.h"
-#include "../../src/monitoring/air_quality_monitor.h"
 #include "test_framework.h"
+
+// The state machine is tested on a generic 0..100 "air" scale with a LOW level
+// (15 / 30 / 50, hyst 5); the real gas limits (volts) are tested at the end.
+static const ThresholdSet kAir = {{true, 15.0f, 30.0f, 50.0f}, {false, 0, 0, 0}, 5.0f};
 
 static int drain(AlertManager& m, AlertEvent* last = nullptr) {
   int n = 0;
@@ -10,13 +13,13 @@ static int drain(AlertManager& m, AlertEvent* last = nullptr) {
   return n;
 }
 
-// Feeds a constant air index once per second for `ms`.
+// Feeds a constant air value once per second for `ms`.
 static void feedAir(AlertManager& m, float idx, uint32_t& now, uint32_t ms) {
   for (uint32_t t = 0; t <= ms; t += 1000, now += 1000) m.updateAir(true, idx, now);
 }
 
 TEST(alert_normal_generates_nothing) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   feedAir(m, 3, now, 60000);
   CHECK_EQ(drain(m), 0);
@@ -25,7 +28,7 @@ TEST(alert_normal_generates_nothing) {
 }
 
 TEST(alert_air_high_event_and_relay) {
-  AlertManager m(7);
+  AlertManager m(7, kAir);
   uint32_t now = 0;
   feedAir(m, 70, now, 6000);
   AlertEvent e;
@@ -40,7 +43,7 @@ TEST(alert_air_high_event_and_relay) {
 }
 
 TEST(alert_medium_then_high_is_immediate_escalation_event) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   feedAir(m, 35, now, 6000);
   AlertEvent e;
@@ -55,7 +58,7 @@ TEST(alert_medium_then_high_is_immediate_escalation_event) {
 }
 
 TEST(alert_recovery_event_after_stable_normal) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   feedAir(m, 70, now, 6000);
   drain(m);
@@ -74,7 +77,7 @@ TEST(alert_recovery_event_after_stable_normal) {
 }
 
 TEST(alert_oscillation_does_not_storm) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   // index oscillating around the LOW threshold (15) +-3 for 10 minutes
   for (int i = 0; i < 600; ++i, now += 1000) m.updateAir(true, (i % 2) ? 18 : 12, now);
@@ -83,7 +86,7 @@ TEST(alert_oscillation_does_not_storm) {
 }
 
 TEST(alert_invalid_reading_holds_state) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   feedAir(m, 70, now, 6000);
   drain(m);
@@ -93,7 +96,7 @@ TEST(alert_invalid_reading_holds_state) {
 }
 
 TEST(alert_temperature_and_humidity) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   for (int i = 0; i < 20; ++i, now += 1000) m.updateEnvironment(true, 33, 35, 50, now);
   AlertEvent e;
@@ -108,7 +111,7 @@ TEST(alert_temperature_and_humidity) {
 }
 
 TEST(alert_low_humidity) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   for (int i = 0; i < 40; ++i, now += 1000) m.updateEnvironment(true, 22, 22, 27, now);
   AlertEvent e;
@@ -118,7 +121,7 @@ TEST(alert_low_humidity) {
 }
 
 TEST(alert_system_flags) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   m.setSystemFlags(SYS_ENV_SENSOR_FAULT, 1000);
   AlertEvent e;
   CHECK_EQ(drain(m, &e), 1);
@@ -134,7 +137,7 @@ TEST(alert_system_flags) {
 }
 
 TEST(alert_reminder_while_persisting) {
-  AlertManager m(1);
+  AlertManager m(1, kAir);
   uint32_t now = 0;
   feedAir(m, 70, now, 6000);
   drain(m);
@@ -146,7 +149,7 @@ TEST(alert_reminder_while_persisting) {
 }
 
 TEST(alert_restore_after_reboot) {
-  AlertManager m(2);
+  AlertManager m(2, kAir);
   m.restoreHigh(0x01, 0);
   CHECK(m.category(Category::AirQuality) == Severity::High);
   CHECK(m.relayDemand());
@@ -164,7 +167,8 @@ TEST(alert_restore_after_reboot) {
 }
 
 TEST(event_ids_unique_and_monotonic) {
-  EventIdGenerator g(3);
+  EventIdGenerator g;
+  g.setBootCount(3);
   uint32_t a = g.next(), b = g.next();
   CHECK(a != b);
   CHECK_EQ(a, (3u << 16) | 1);
@@ -172,7 +176,7 @@ TEST(event_ids_unique_and_monotonic) {
 }
 
 TEST(alert_restore_announced_once) {
-  AlertManager m(4);
+  AlertManager m(4, kAir);
   m.restoreHigh(0x02, 0);  // temperature was HIGH before the reboot
   m.announceRestored(3000);
   AlertEvent e;
@@ -184,12 +188,14 @@ TEST(alert_restore_announced_once) {
   CHECK_EQ(e.eventId, (4u << 16) | 1);
 }
 
-TEST(air_sim_index_survives_sensor_fault) {
-  AirQualityMonitor a;
-  a.begin(0, 10000, true);
-  a.skipWarmup();
-  a.simulateIndex(true, 55);
-  a.addSample(0, 20, 50, true, 1000);  // ADC 0 = disconnected sensor
-  CHECK(a.usable(1000));
-  CHECK_NEAR(a.last().index, 55, 0.01);
+TEST(alert_default_gas_limits_are_volts) {
+  AlertManager m(1);  // thr::GAS_VOLTS: MEDIUM 0.90 V, HIGH 1.5 V, no LOW
+  uint32_t now = 0;
+  feedAir(m, 0.5f, now, 2000);
+  CHECK(m.category(Category::AirQuality) == Severity::Normal);
+  feedAir(m, 1.0f, now, 2000);
+  CHECK(m.category(Category::AirQuality) == Severity::Medium);
+  feedAir(m, 2.0f, now, 2000);
+  CHECK(m.category(Category::AirQuality) == Severity::High);
+  CHECK(m.relayDemand());
 }

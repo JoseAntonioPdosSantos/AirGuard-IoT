@@ -4,53 +4,19 @@
 #include <math.h>
 
 #include "../config/hardware_pins.h"
+#include "../platform/board.h"
 #include "../utils/logger.h"
+#include "dht_codec.h"
 
-#if defined(AIRGUARD_ENV_SENSOR_AHT20)
-// ---------------------------------------------------------------------------
-#include <Adafruit_AHTX0.h>
-#include <Wire.h>
-static Adafruit_AHTX0 g_aht;
-static bool g_ahtOk = false;
-
-bool TemperatureSensor::begin() {
-  g_ahtOk = g_aht.begin(&Wire);  // Wire configured by the app (board::i2cBegin)
-  if (!g_ahtOk) LOGE("ENV", "AHT20 not found at 0x38");
-  return g_ahtOk;
-}
-
-EnvReading TemperatureSensor::read() {
-  if (!g_ahtOk) { g_ahtOk = g_aht.begin(&Wire); if (!g_ahtOk) return {false, NAN, NAN}; }
-  sensors_event_t h, t;
-  // Note: the AHT20 conversion takes ~80 ms inside the library.
-  if (!g_aht.getEvent(&h, &t)) return {false, NAN, NAN};
-  return {true, t.temperature, h.relative_humidity};
-}
-
-const char* TemperatureSensor::model() const { return "AHT20"; }
-
-#else
-// ---------------------------------------------------------------------------
-// Own bit-banged DHTxx driver. The Adafruit DHT library was replaced because,
+// Own bit-banged DHT11 driver. The Adafruit DHT library was replaced because,
 // with a bad/unstable data line, its read loop keeps interrupts disabled for
 // seconds: on the ESP32 that trips the 300 ms interrupt watchdog (observed on
 // the bench: reboot loop). Here every edge has a 100 us timeout, so the
 // interrupt-free window is at most ~8.5 ms even with a broken sensor.
-#include "../platform/board.h"
-#include "dht_codec.h"
-
-#if defined(AIRGUARD_ENV_SENSOR_DHT11)
-static constexpr dht::Model kDht = dht::Model::DHT11;
-static constexpr uint32_t kStartLowMs = 20;  // DHT11: host start signal >= 18 ms
-static const char* const kModel = "DHT11";
-#else
-static constexpr dht::Model kDht = dht::Model::DHT22;
-static constexpr uint32_t kStartLowMs = 2;   // DHT22: >= 1 ms
-static const char* const kModel = "DHT22";
-#endif
 
 namespace {
 
+constexpr uint32_t START_LOW_MS = 20;  // host start signal, DHT11 needs >= 18 ms
 constexpr uint32_t EDGE_TIMEOUT_US = 100;
 
 // Time (us) the line stays at `level`, or -1 if it does not change in time.
@@ -67,19 +33,18 @@ ReadError g_lastError = ReadError::None;
 
 }  // namespace
 
-bool TemperatureSensor::begin() {
+void TemperatureSensor::begin() {
   pinMode(pins::DHT_DATA, INPUT_PULLUP);  // idle HIGH (the module also has a pull-up)
-  return true;                            // no presence check; first read() validates it
-}
+}                                         // no presence check; first read() validates it
 
 EnvReading TemperatureSensor::read() {
   const uint8_t pin = pins::DHT_DATA;
   uint8_t frame[5] = {0, 0, 0, 0, 0};
 
-  // Host start signal: hold LOW, then release (blocking 2-20 ms, as before).
+  // Host start signal: hold LOW, then release (blocking 20 ms).
   pinMode(pin, OUTPUT);
   digitalWrite(pin, LOW);
-  delay(kStartLowMs);
+  delay(START_LOW_MS);
   pinMode(pin, INPUT_PULLUP);  // released before the critical section (pinMode may log)
 
   ReadError err = ReadError::None;
@@ -99,18 +64,15 @@ EnvReading TemperatureSensor::read() {
   board::criticalEnd();
 
   float t = NAN, h = NAN;
-  if (err == ReadError::None && !dht::decode(frame, kDht, t, h)) err = ReadError::Checksum;
+  if (err == ReadError::None && !dht::decode(frame, t, h)) err = ReadError::Checksum;
   if (err != g_lastError) {  // log only changes: no flood with a missing sensor
     static const char* const names[] = {"ok", "no response (check DATA/VCC/GND)",
                                         "timeout in the middle of the frame",
                                         "checksum error"};
-    if (err == ReadError::None) LOGI("ENV", "%s read %s", kModel, names[0]);
-    else LOGW("ENV", "%s read failed: %s", kModel, names[static_cast<uint8_t>(err)]);
+    if (err == ReadError::None) LOGI("ENV", "DHT11 read %s", names[0]);
+    else LOGW("ENV", "DHT11 read failed: %s", names[static_cast<uint8_t>(err)]);
     g_lastError = err;
   }
   if (err != ReadError::None) return {false, NAN, NAN};
   return {true, t, h};
 }
-
-const char* TemperatureSensor::model() const { return kModel; }
-#endif

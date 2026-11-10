@@ -18,11 +18,9 @@ const char* levelName(LogLevel l) {
 namespace logger {
 
 void begin(uint32_t baud) {
-#if defined(ARDUINO_ARCH_ESP32)
   // UART0 + USB bridge: the default TX space is only the 128 B hardware FIFO,
   // so availableForWrite() would reject every long line. Must precede begin().
   Serial.setTxBufferSize(2048);
-#endif
   Serial.begin(baud);  // never wait for a host
 }
 void setLevel(LogLevel l) { g_level = l; }

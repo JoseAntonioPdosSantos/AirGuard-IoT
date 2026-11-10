@@ -1,9 +1,9 @@
-// AirGuard IoT - environmental limits and MQ-135 calibration constants.
+// AirGuard IoT - alarm limits and the MQ-135 measurement circuit.
 //
 // IMPORTANT
-//  * Air-quality limits are RELATIVE sensor-response limits (air_index), not
-//    toxicological limits and not ppm of any specific gas. They must be set
-//    by experimental calibration in the installation site.
+//  * The gas limits are RELATIVE sensor-response limits (MQ-135 AO voltage),
+//    not toxicological limits and not ppm of any specific gas. They must be
+//    adjusted by observing the sensor in the installation site.
 //  * Temperature/humidity limits are PROTOTYPE comfort/attention limits based
 //    on WHO, EPA, ASHRAE and NOAA references (docs/05_environmental_thresholds.md).
 //    They separate "discomfort" (LOW) from "attention" (MEDIUM) and
@@ -32,33 +32,21 @@ struct ThresholdSet {
 namespace thr {
 
 // ---------------------------------------------------------------------------
-// Air quality (air_index: 0 = reference clean air, 100 = Rs -> 0)
-// air_index = 100 * (1 - Rs/R0), clamped to [0, 100].
-// Example: Rs/R0 = 0.70 -> 30. Initial values: PLACEHOLDERS for calibration.
-// ---------------------------------------------------------------------------
-constexpr ThresholdSet AIR_QUALITY = {
-    /*above*/ {true, 15.0f, 30.0f, 50.0f},
-    /*below*/ {false, 0, 0, 0},
-    /*hyst */ 5.0f};
-
-// ---------------------------------------------------------------------------
-// Air quality by AO VOLTAGE (cfg::AIR_ALERT_BY_VOLTAGE = true, no R0 needed).
-// air_index = 100 * V(AO) / 5 V, i.e. the AO voltage in percent of 5 V:
-//   MEDIUM from 0.90 V (= 18), HIGH from 1.5 V (= 30); hysteresis 0.05 V = 1.
-//   (user request, 2026-11-08). 0.30 V was too close to the clean-air
-//   baseline (~0.2-0.6 V on the bench) and gave false MEDIUM alarms. The
-//   HIGH raised from 1.0 V to 1.5 V (user request) so MEDIUM (0.90-1.5 V)
-//   is a real early warning. The hysteresis must stay well below 0.90 V.
+// Gas: MQ-135 AO voltage in volts (0..5 V, divider already undone).
+//   MEDIUM from 0.90 V, HIGH from 1.5 V; hysteresis 0.05 V (user request,
+//   2026-11-08). 0.30 V was too close to the clean-air baseline (~0.2-0.6 V
+//   on the bench) and gave false MEDIUM alarms. HIGH was raised from 1.0 V to
+//   1.5 V (user request) so MEDIUM (0.90-1.5 V) is a real early warning.
 //   No LOW level for gas (user request): LOW == MEDIUM threshold, so the
-//   classifier goes NORMAL -> MEDIUM directly.
+//   classifier goes NORMAL -> MEDIUM directly. Keep the hysteresis well
+//   below 0.90 V.
 // Bench values (ESP32, this sensor): clean air ~0.5 V, gas lighter near the
 // sensor -> close to 5 V. INITIAL values: adjust after observing your kitchen.
 // ---------------------------------------------------------------------------
-constexpr float AO_LOW_V = 0.90f, AO_MEDIUM_V = 0.90f, AO_HIGH_V = 1.5f, AO_HYST_V = 0.05f;
-constexpr ThresholdSet AIR_VOLTAGE = {
-    /*above*/ {true, AO_LOW_V * 20.0f, AO_MEDIUM_V * 20.0f, AO_HIGH_V * 20.0f},
+constexpr ThresholdSet GAS_VOLTS = {
+    /*above*/ {true, 0.90f, 0.90f, 1.5f},
     /*below*/ {false, 0, 0, 0},
-    /*hyst */ AO_HYST_V * 20.0f};
+    /*hyst */ 0.05f};
 
 // ---------------------------------------------------------------------------
 // Temperature. "above" uses the APPARENT temperature max(T, heat index)
@@ -101,43 +89,18 @@ constexpr float HUM_MAX_PLAUSIBLE  = 100.0f;
 namespace mq135 {
 
 // ---- Measurement circuit (MEASURE your module! docs/01_hardware.md) --------
-constexpr float ADC_VREF        = 3.30f;    // RP2040: ADC_VREF = 3V3; ESP32: board::adcRead12 rescales mV to 3.3 V
-constexpr float ADC_MAX_COUNTS  = 4095.0f;  // 12-bit
-constexpr float DIVIDER_R_TOP   = 10000.0f; // AO -> R_TOP -> ADC
-constexpr float DIVIDER_R_BOTTOM = 20000.0f;// ADC -> R_BOTTOM -> GND (2 x 10k in SERIES;
-                                            // if they are in PARALLEL use 5000.0f)
-constexpr float CIRCUIT_VOLTAGE = 5.00f;    // Vc across Rs + RL (measure it)
-constexpr float LOAD_RESISTANCE = 10000.0f; // RL on the module (often 1k/10k/20k!)
+constexpr float ADC_VREF         = 3.30f;    // board::adcRead12 scales the pin mV to 3.3 V
+constexpr float ADC_MAX_COUNTS   = 4095.0f;  // 12-bit
+constexpr float DIVIDER_R_TOP    = 10000.0f; // AO -> R_TOP -> ADC
+constexpr float DIVIDER_R_BOTTOM = 20000.0f; // ADC -> R_BOTTOM -> GND (2 x 10k in SERIES)
+constexpr float CIRCUIT_VOLTAGE  = 5.00f;    // module supply = maximum AO voltage
 
-// ---- Calibration -----------------------------------------------------------
-constexpr uint32_t CAL_DURATION_MS   = 60000;  // clean-air averaging window
-constexpr uint16_t CAL_MIN_SAMPLES   = 30;
-constexpr float    CAL_MAX_CV        = 0.05f;  // max coefficient of variation
-constexpr float    R0_MIN_PLAUSIBLE  = 500.0f;
-constexpr float    R0_MAX_PLAUSIBLE  = 2.0e6f;
-
-// ---- Filtering -------------------------------------------------------------
-constexpr uint8_t MEDIAN_WINDOW = 5;     // odd, <= 9
-constexpr float   EMA_ALPHA     = 0.25f; // 0..1, higher = faster
-// Voltage mode: INSTANT attack (a rising AO value is used as is, so the alarm
-// fires on the first sample above the threshold) and median + EMA release.
-// It filters the AO VOLTAGE itself (not Rs): averaging Rs and
-// converting back to volts is dominated by the large clean-air Rs and made
-// the alarm lag ~20 s behind the OLED value on the bench.
+// ---- Filtering of the AO voltage --------------------------------------------
+// INSTANT attack (a rising value is used as is, so the alarm fires on the
+// first sample above the threshold) and median + EMA release.
 // BENCH TEST: 1 / 1.0 = no filtering, the alarm follows the reading at once
 // (5 Hz). For real use: e.g. 5 / 0.3 to ignore electrical noise.
-constexpr uint8_t V_MEDIAN_WINDOW = 1;   // odd, <= 9 (samples at 5 Hz)
-constexpr float   V_EMA_ALPHA     = 1.0f;  // 0..1, 1 = no smoothing
-
-// ---- Optional temperature/humidity compensation ---------------------------
-// Polynomial fitted by the community (GeorgK MQ135 library) to the
-// datasheet "Rs/R0 vs temperature/humidity" curves. NOT validated by us:
-// keep disabled until you validate it with your own sensor.
-//   f(T,H) = A*T^2 - B*T + C - (H - 33) * D     (f ~= 1 at 20 C / 33 %RH)
-constexpr bool  COMPENSATION_ENABLED = false;
-constexpr float CORR_A = 0.00035f;
-constexpr float CORR_B = 0.02718f;
-constexpr float CORR_C = 1.39538f;
-constexpr float CORR_D = 0.0018f;
+constexpr uint8_t MEDIAN_WINDOW = 1;     // odd, <= 9 (samples at 5 Hz)
+constexpr float   EMA_ALPHA     = 1.0f;  // 0..1, 1 = no smoothing
 
 }  // namespace mq135

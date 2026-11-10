@@ -17,10 +17,9 @@ TEST(encode_alert_contains_spec_fields) {
   e.previous = Severity::Medium;
   e.eventId = 1024;
   e.uptimeS = 123456;
-  e.snapshot.airValid = e.snapshot.airCalibrated = true;
-  e.snapshot.airWarmingUp = false;
+  e.snapshot.airValid = true;
   e.snapshot.rawAdc = 2850;
-  e.snapshot.airIndex = 85.2f;
+  e.snapshot.gasVolts = 4.260f;  // air_index 85.2
   e.snapshot.envValid = true;
   e.snapshot.temperature = 32.5f;
   e.snapshot.humidity = 68;
@@ -64,10 +63,9 @@ TEST(encode_worst_case_fits_radio_limit) {
   e.eventId = 0xFFFFFFFFu;
   e.uptimeS = 0xFFFFFFFFu;
   e.reminder = true;
-  e.snapshot.airValid = e.snapshot.airCalibrated = true;
-  e.snapshot.airWarmingUp = false;
+  e.snapshot.airValid = true;
   e.snapshot.rawAdc = 4095;
-  e.snapshot.airIndex = 100;
+  e.snapshot.gasVolts = 5.000f;  // air_index 100
   e.snapshot.envValid = true;
   e.snapshot.temperature = -40;
   e.snapshot.humidity = 100;
@@ -172,9 +170,8 @@ TEST(source_whitelist) {
 TEST(protocol_heartbeat_fields_and_size) {
   Severity lv[CATEGORY_COUNT] = {Severity::Normal, Severity::Normal, Severity::Low, Severity::High};
   SensorSnapshot s;
-  s.airValid = s.airCalibrated = true;
-  s.airWarmingUp = false;
-  s.airIndex = 5.2f;
+  s.airValid = true;
+  s.gasVolts = 0.260f;  // air_index 5.2
   s.envValid = true;
   s.temperature = 25.4f;
   s.humidity = 61.0f;

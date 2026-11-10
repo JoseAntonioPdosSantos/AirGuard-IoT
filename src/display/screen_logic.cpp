@@ -4,14 +4,13 @@
 
 #include "../utils/text_utils.h"
 
-bool RemoteMessageDisplay::push(const char* sender, const char* utf8, uint32_t now) {
+bool RemoteMessageDisplay::push(const char* sender, const char* utf8) {
   if (count_ == cfg::REMOTE_MSG_QUEUE) return false;  // drop newest when full
   Item& it = q_[(head_ + count_) % cfg::REMOTE_MSG_QUEUE];
   strncpy(it.sender, sender ? sender : "", cfg::MAX_ID_LEN);
   it.sender[cfg::MAX_ID_LEN] = '\0';
   if (text::toDisplayAscii(utf8, it.ascii, sizeof it.ascii) == 0) return false;
-  ++count_;
-  (void)now;  // display starts on the next update() call (same loop iteration)
+  ++count_;  // display starts on the next update() call (same loop iteration)
   return true;
 }
 

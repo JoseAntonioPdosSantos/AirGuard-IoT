@@ -18,19 +18,12 @@ struct DisplayModel {
   // main screen
   bool     envValid = false;
   float    temperature = 0, humidity = 0;
-  bool     airUsable = false;
   bool     airWarmingUp = true;
-  uint32_t warmupLeftS = 0;
-  bool     airCalibrated = false;
   bool     airFault = false;
   bool     envFault = false;
-  bool     calibrating = false;
-  uint8_t  calPercent = 0;
   bool     simulation = false;
-  float    airIndex = 0;
   float    airAoVolts = 0;   // MQ-135 AO voltage (before the divider), 0..5 V
   bool     airAoValid = false;
-  Severity airSeverity = Severity::Normal;
   // alert screen
   Severity overall = Severity::Normal;
   Category worst = Category::System;

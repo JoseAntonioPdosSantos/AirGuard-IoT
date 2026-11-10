@@ -21,7 +21,6 @@ void RelayManager::begin() {
 void RelayManager::set(bool on, uint32_t now) {
   if (on == on_) return;
   on_ = on;
-  ++switches_;
   write(on);
   LOGI("RELAY", "%s (after %lu ms in previous state)", on ? "ENERGISED" : "released",
        static_cast<unsigned long>(now - lastChangeMs_));

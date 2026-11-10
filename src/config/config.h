@@ -1,8 +1,8 @@
 // AirGuard IoT - central configuration (timing, identity, radio, policies).
 //
 // This header is platform independent (no Arduino includes) so the core
-// logic can be unit tested on a PC. Calibration values and environmental
-// limits live in thresholds.h; GPIOs live in hardware_pins.h.
+// logic can be unit tested on a PC. Alarm limits and the MQ-135 circuit live
+// in thresholds.h; GPIOs live in hardware_pins.h.
 #pragma once
 #include <stddef.h>
 #include <stdint.h>
@@ -26,7 +26,7 @@ constexpr size_t ALLOWED_TEXT_SOURCES_COUNT =
 // ---------------------------------------------------------------------------
 constexpr uint32_t MQ135_SAMPLE_PERIOD_MS  = 200;   // 5 Hz: gas alarm reacts within ~0.2 s
 constexpr uint8_t  MQ135_OVERSAMPLE        = 16;    // ADC reads averaged per sample
-constexpr uint32_t ENV_SAMPLE_PERIOD_MS    = 2500;  // DHT11 >= 1 s, DHT22 >= 2 s between reads
+constexpr uint32_t ENV_SAMPLE_PERIOD_MS    = 2500;  // DHT11 needs >= 1 s between reads
 constexpr uint32_t BOOT_SCREEN_MS          = 3000;  // brand/slogan splash
 constexpr uint32_t DISPLAY_REFRESH_MS      = 50;   // 20 fps for the scrolling line
 constexpr uint32_t DISPLAY_TICKER_PX_PER_S = 40;   // scrolling speed
@@ -36,7 +36,7 @@ constexpr uint32_t DISPLAY_BLINK_MS        = 500;
 // likely 3V3 dips during LoRa TX) is repaired within this time.
 constexpr uint32_t DISPLAY_FULL_REFRESH_MS = 2000;
 constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
-constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;  // RP2040 max is ~8.3 s; ESP32 any
+constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;
 
 // ---------------------------------------------------------------------------
 // MQ-135 warm-up
@@ -44,7 +44,7 @@ constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;  // RP2040 max is ~8.3 s; ESP
 // (Hanwei: "over 24 h", Winsen: "over 48 h"). After the sensor has been
 // burned in, a short warm-up after each power-on is still required before
 // readings are trusted. 5 min is a prototype value: measure your sensor's
-// settling time (docs/04_calibration_mq135.md) and adjust.
+// settling time (docs/04_mq135.md) and adjust.
 // ---------------------------------------------------------------------------
 constexpr uint32_t MQ135_WARMUP_MS = 5UL * 60UL * 1000UL;
 // DEVELOPMENT ONLY: skip the warm-up at every boot (alarms active at once,
@@ -56,7 +56,7 @@ constexpr bool DEV_SKIP_MQ135_WARMUP = true;
 // ---------------------------------------------------------------------------
 constexpr uint8_t  ENV_FAIL_LIMIT     = 3;   // consecutive bad reads -> fault (~7.5 s)
 constexpr uint8_t  MQ135_FAIL_LIMIT   = 25;  // consecutive bad samples -> fault (~5 s at 5 Hz)
-// ADC at its floor (ESP32: AO below ~0.21 V) -> sensor FAULT?
+// ADC at its floor (AO below ~0.21 V) -> sensor FAULT?
 //   true : safest; an open AO wire is detected (SYSTEM alert).
 //   false: BENCH setting (user request). After hours powered, this sensor's
 //          clean-air AO drifted below what the ESP32 ADC can measure, so the
@@ -66,23 +66,12 @@ constexpr bool MQ135_FLOOR_IS_FAULT = false;
 // noise sometimes crosses the floor for one sample: without this the fault
 // flapped ALERT/RECOVERY every ~8 s and each event went out over LoRa.
 constexpr uint8_t  MQ135_OK_TO_CLEAR  = 10;
-// MQ-135 alert basis:
-//   true : AO voltage (0..5 V) against thr::AIR_VOLTAGE. No calibration needed.
-//   false: Rs/R0 relative to the calibrated clean-air R0 (thr::AIR_QUALITY).
-constexpr bool AIR_ALERT_BY_VOLTAGE = true;
-
-#if defined(ARDUINO_ARCH_ESP32)
 // ESP32 ADC (11 dB attenuation) cannot read below ~0.14 V (it returns that
 // floor for 0 V, measured on the bench: 176 counts), and saturates at ~3.1 V.
 // A pin at the floor is indistinguishable from "AO disconnected / shorted".
-constexpr uint16_t MQ135_ADC_MIN_VALID = 200;   // ~0.16 V at the pin
 // No upper fault limit: with the 10k/20k divider the pin saturates at ~3.1 V
 // (AO ~4.7 V) only under STRONG gas, which must read as high, not as a fault.
-constexpr uint16_t MQ135_ADC_MAX_VALID = 4095;
-#else
-constexpr uint16_t MQ135_ADC_MIN_VALID = 8;     // below: open circuit / disconnected
-constexpr uint16_t MQ135_ADC_MAX_VALID = 4085;  // above: saturated / over-range
-#endif
+constexpr uint16_t MQ135_ADC_MIN_VALID = 200;   // ~0.16 V at the pin
 
 // ---------------------------------------------------------------------------
 // Alert persistence (temporal hysteresis). See docs/06_alerts.md.
