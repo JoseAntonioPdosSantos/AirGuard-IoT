@@ -39,11 +39,14 @@ constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
 // "@T env" telemetry line on USB serial for the AirGuard Web dashboard
 // (docs/11_telemetry.md). 0 = no periodic snapshot (radio records still sent).
 // Telemetry for AirGuard Web (docs/11_telemetry.md): sent over Wi-Fi by net/uplink.
-constexpr const char* UPLINK_DEFAULT_SERVER = "http://192.168.1.10:8787";
-constexpr uint32_t UPLINK_PERIOD_MS       = 2000;   // one POST at most every 2 s
-constexpr uint32_t UPLINK_HTTP_TIMEOUT_MS = 4000;
+constexpr const char* UPLINK_DEFAULT_BROKER = "192.168.1.10:1883";  // MQTT broker (laptop)
+constexpr uint16_t UPLINK_MQTT_PORT       = 1883;   // when the broker has no ":port"
+constexpr uint16_t UPLINK_MQTT_KEEPALIVE_S = 30;
+constexpr uint16_t UPLINK_MQTT_TIMEOUT_S  = 4;
+constexpr uint32_t UPLINK_MQTT_RETRY_MS   = 5000;   // between connection attempts
+constexpr uint32_t UPLINK_PERIOD_MS       = 2000;   // one publish at most every 2 s
 constexpr size_t   UPLINK_QUEUE_BYTES     = 32768;  // ~1-2 min of records without network
-constexpr size_t   UPLINK_BATCH_BYTES     = 12288;  // body of one POST
+constexpr size_t   UPLINK_BATCH_BYTES     = 12288;  // payload of one publish
 constexpr size_t   UPLINK_BATCH_RECORDS   = 60;
 constexpr uint32_t UPLINK_TASK_STACK      = 8192;
 constexpr uint32_t WATCHDOG_TIMEOUT_MS     = 8000;

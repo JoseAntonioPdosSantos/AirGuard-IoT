@@ -5,29 +5,37 @@ os registros ao AirGuard Web pelo **Wi-Fi**, sem notebook nem cabo USB. O **RP20
 grava log nenhum: ele informa o ESP32 pelo próprio rádio, e o ESP32 repassa ao servidor.
 
 ```
-RP2040 ──LoRa: ACK (+rssi/snr), STAT a cada 15 s──> ESP32 ──Wi-Fi: POST /api/telemetry/ingest──> servidor :8787 ──> página Ambiente
-       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────                {now, records:[...]} a cada 2 s              (tempo real, SSE)
+RP2040 ──LoRa: ACK (+rssi/snr), STAT a cada 15 s──> ESP32 ──Wi-Fi + MQTT──> broker :1883 ──> AirGuard Web :8787 ──> página Ambiente
+       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────       publica em          (mosquitto     (assina airguard/+/    (tempo real, SSE)
+                                                         airguard/KITCHEN_01/ mosquitto)   telemetry, grava em
+                                                         telemetry a cada 2 s              data/telemetry/)
 ```
 
 ## Envio (ESP32, `src/net/uplink.*`)
 
-- Task própria no **core 0** (o loop da aplicação roda no core 1): Wi-Fi, DNS e HTTP nunca atrasam
+- Protocolo **MQTT 3.1.1** (biblioteca PubSubClient), tópico `airguard/<DEVICE_ID>/telemetry`
+  (`airguard/KITCHEN_01/telemetry`), **QoS 0**, sem retain, client id `airguard-KITCHEN_01`,
+  keep-alive de 30 s. Login próprio no broker (usuário `airguard`).
+- Task própria no **core 0** (o loop da aplicação roda no core 1): Wi-Fi, DNS e MQTT nunca atrasam
   os sensores, o alarme ou o LoRa.
 - Os registros esperam numa fila na RAM (`cfg::UPLINK_QUEUE_BYTES` = 32 kB, cerca de 2 a 3 min).
-  Com a fila cheia, os mais antigos são descartados. Um lote só sai da fila depois do HTTP 200.
-- Corpo: `{"now": <millis() no envio>, "records": [...]}`. O servidor data cada registro como
+  Com a fila cheia, os mais antigos são descartados. Um lote sai da fila quando o pacote MQTT
+  inteiro foi escrito na conexão TCP. **Com QoS 0 não há confirmação do broker:** se a conexão cair
+  logo depois da escrita, esse lote (até 2 s de registros) pode se perder. Se a escrita falhar, o
+  lote fica na fila e a conexão é refeita.
+- Mensagem: `{"now": <millis() no envio>, "records": [...]}`. O servidor data cada registro como
   `chegada − (now − ms)`, então a placa **não precisa de relógio** (funciona também na virada do
   `millis()`).
-- Cabeçalho `X-Device-Key`: chave criada com `node server/src/cli.js device:add "ESP32 KITCHEN_01"`.
-- Só `http://`, sem TLS (rede local).
+- Sem TLS (rede local): o login e os dados trafegam em texto puro. O broker não tem ACL, então
+  qualquer login dele pode ler e publicar em qualquer tópico.
 
 Configuração, salva na NVS (sobrevive a reboot e a regravação do firmware):
 
 ```
-net                                   estado (Wi-Fi, IP, fila, enviados, último HTTP)
+net                                   estado (Wi-Fi, IP, MQTT, fila, enviados)
 net ssid <rede>     net pass <senha>  rede Wi-Fi (o valor é o resto da linha)
-net server http://192.168.1.10:8787    servidor
-net key <chave>                       chave do dispositivo
+net broker 192.168.1.10:1883           broker MQTT (porta padrão 1883)
+net user airguard   net mqttpass <s>  login MQTT
 tlm on|off                            ecoa os registros na USB como "@T {...}" (depuração; padrão off)
 ```
 

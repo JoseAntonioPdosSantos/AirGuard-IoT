@@ -36,10 +36,10 @@ const char* HELP =
     "  sim off                              disable every simulation\r\n"
     "  log debug|info|warn                  log level\r\n"
     "  tlm on|off                           echo telemetry records on USB as '@T' lines\r\n"
-    "  net                                  Wi-Fi / AirGuard Web uplink status\r\n"
+    "  net                                  Wi-Fi / MQTT uplink status\r\n"
     "  net ssid <name> | net pass <pass>    Wi-Fi network (saved in flash; rest of the line)\r\n"
-    "  net server http://host:port          AirGuard Web server\r\n"
-    "  net key <device key>                 key from: cli.js device:add \"ESP32\"\r\n"
+    "  net broker host[:port]               MQTT broker (default port 1883)\r\n"
+    "  net user <name> | net mqttpass <p>   MQTT login\r\n"
     "  reboot                               reboot (test: reboot during alert)\r\n";
 
 void writeRaw(const char* s) {
@@ -139,11 +139,12 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
     uplink::Setting s;
     if (!strcmp(a, "ssid")) s = uplink::Setting::Ssid;
     else if (!strcmp(a, "pass")) s = uplink::Setting::Password;
-    else if (!strcmp(a, "server")) s = uplink::Setting::Server;
-    else if (!strcmp(a, "key")) s = uplink::Setting::Key;
-    else { LOGW("CON", "usage: net | net ssid|pass|server|key <value>"); return; }
+    else if (!strcmp(a, "broker")) s = uplink::Setting::Broker;
+    else if (!strcmp(a, "user")) s = uplink::Setting::User;
+    else if (!strcmp(a, "mqttpass")) s = uplink::Setting::MqttPassword;
+    else { LOGW("CON", "usage: net | net ssid|pass|broker|user|mqttpass <value>"); return; }
     if (uplink::set(s, p)) LOGI("CON", "net %s saved%s", a, *p ? "" : " (cleared)");
-    else LOGW("CON", "net %s: value too long%s", a, s == uplink::Setting::Server ? " or not http://" : "");
+    else LOGW("CON", "net %s: value too long", a);
     return;
   }
   if (!strcmp(cmd, "warmup")) {
