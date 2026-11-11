@@ -77,7 +77,18 @@ void connectWifi(const Config& c) {
 // record in time with now - ms (the node has no clock).
 char g_body[cfg::UPLINK_BATCH_BYTES];
 
+// Last disconnect reason (wifi_err_reason_t), logged when it changes.
+volatile uint8_t g_lastReason = 0;
+
+void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
+  if (event != ARDUINO_EVENT_WIFI_STA_DISCONNECTED) return;
+  const uint8_t r = info.wifi_sta_disconnected.reason;
+  if (r != g_lastReason) LOGW("NET", "Wi-Fi disconnect reason %u", r);
+  g_lastReason = r;
+}
+
 void task(void*) {
+  WiFi.onEvent(onWifiEvent);
   WiFi.mode(WIFI_STA);
   WiFi.setAutoReconnect(true);
   WiFi.setHostname("airguard-node");
@@ -226,7 +237,8 @@ void printStatus() {
   xSemaphoreGive(g_lock);
   const bool up = WiFi.status() == WL_CONNECTED;
   LOGI("NET", "Wi-Fi '%s': %s%s%s", c.ssid[0] ? c.ssid : "(not set)", up ? "connected, IP " : "not connected",
-       up ? WiFi.localIP().toString().c_str() : "", up ? "" : "");
+       up ? WiFi.localIP().toString().c_str() : "", "");
+  if (!up) LOGI("NET", "Wi-Fi status %d, last disconnect reason %u", static_cast<int>(WiFi.status()), g_lastReason);
   if (up) LOGI("NET", "Wi-Fi RSSI %d dBm", WiFi.RSSI());
   LOGI("NET", "server %s | key %s | password %s", c.server[0] ? c.server : "(not set)",
        c.key[0] ? "set" : "NOT SET", c.pass[0] ? "set" : "empty");
