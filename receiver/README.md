@@ -29,8 +29,8 @@ sensor recebe o ACK e o `NO ACK` some.
 | | NRST | **GP2** |
 | **LCD 16x2 + módulo I2C (PCF8574)** | VCC | **3V3**, veja abaixo |
 | | GND | GND |
-| | SDA | **GP4** |
-| | SCL | **GP5** |
+| | SDA | **GP10** |
+| | SCL | **GP3** |
 | **LED verde** | ânodo (perna longa) | 220 Ω–1 kΩ → **GP6** (cátodo no GND) |
 | **LED amarelo** | ânodo | 220 Ω–1 kΩ → **GP7** |
 | **LED vermelho** | ânodo | 220 Ω–1 kΩ → **GP8** |
@@ -51,14 +51,14 @@ GND**. Isso forma um divisor com os pull-ups do módulo, e as linhas ficam em ~3
 ```
 LCD VCC ── 5V (jumper direto, NÃO no trilho do 3V3 do rádio)
 LCD GND ── GND
-LCD SDA ──┬── GP4          LCD SCL ──┬── GP5
+LCD SDA ──┬── GP10         LCD SCL ──┬── GP3
           └─[10 kΩ]─ GND             └─[10 kΩ]─ GND
 ```
 
 É um **meio-termo**: 3,5 V fica acima dos 3,3 V recomendados para a RP2040 (mas abaixo do máximo
 absoluto, ~3,8 V) e um pouco abaixo do "1" especificado para o PCF8574 em 5 V (0,7 × VCC ≈ 3,6 V).
 Funcionou na bancada. **A solução recomendada é um conversor de nível bidirecional (BSS138)**:
-LV → 3V3, HV → 5V, LV1/HV1 → GP4/SDA, LV2/HV2 → GP5/SCL, sem os resistores de 10 kΩ.
+LV → 3V3, HV → 5V, LV1/HV1 → GP10/SDA, LV2/HV2 → GP3/SCL, sem os resistores de 10 kΩ.
 
 Depois de passar o LCD para 5 V, **reajuste o potenciômetro azul** (contraste) atrás do módulo.
 

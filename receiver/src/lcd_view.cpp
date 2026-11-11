@@ -77,7 +77,7 @@ bool LcdView::begin() {
     int found = 0;
     for (uint8_t a = 0x08; a < 0x78; ++a)
       if (probe(a)) { Serial.printf(" 0x%02X", a); ++found; }
-    Serial.print(found ? "\r\n" : " nothing (check SDA->GP4, SCL->GP5, VCC, GND)\r\n");
+    Serial.print(found ? "\r\n" : " nothing (check SDA->GP10, SCL->GP3, VCC, GND)\r\n");
     return false;
   }
   g_lcd = new (g_lcdMem) LiquidCrystal_I2C(addr_, 16, 2);

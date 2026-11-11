@@ -200,7 +200,8 @@ void loop() {
     lastStat = now;
     if (!g_lcd.stillThere()) g_lcd.begin();
     // Idle level of the I2C lines: 1 = pulled up (module powered and wired), 0 = no pull-up.
-    Serial.printf("[I2C] SDA(GP4)=%d SCL(GP5)=%d\r\n", digitalRead(rxcfg::I2C_SDA), digitalRead(rxcfg::I2C_SCL));
+    Serial.printf("[I2C] SDA(GP%u)=%d SCL(GP%u)=%d\r\n", rxcfg::I2C_SDA, digitalRead(rxcfg::I2C_SDA), rxcfg::I2C_SCL,
+                  digitalRead(rxcfg::I2C_SCL));
     Serial.printf("[STAT] LCD %s (0x%02X) | LoRa %s | events %lu, heartbeats %lu | overall %s%s\r\n",
                   g_lcd.ok() ? "ok" : "NOT FOUND", g_lcd.address(), g_radio.ok() ? "ok" : "FAULT",
                   static_cast<unsigned long>(g_state.events()), static_cast<unsigned long>(g_state.heartbeats()),
