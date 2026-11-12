@@ -38,7 +38,7 @@ O plano tem dois níveis:
 | 4 | Alteração inicial do ar | *(não há LOW para gás com os limites atuais)* | Só se `GAS_VOLTS` ganhar um LOW (doc 04 §4): ALERT AIR_QUALITY LOW; 2 bipes/30 s; tela de alerta fixa; LED amarelo aceso; relé desligado |
 | 5 | Alteração média do ar | `sim air 1.0` | Imediato: ALERT MEDIUM (`prev` NORMAL); 3 bipes/5 s; severidade piscando; LED amarelo piscando; relé desligado |
 | 6 | Alteração crítica do ar | `sim air 1.8` | Imediato: ALERT HIGH, **transmitido antes de qualquer outra mensagem pendente** (o MEDIUM sem ACK é substituído); buzzer contínuo/urgente; tela inteira piscando; **relé energizado; LED verde apagado** (contato NC aberto); LED vermelho piscando |
-| 7 | Temperatura acima da atenção | `sim temp 28` e `sim hum 50` | Após 10 s: ALERT TEMPERATURE LOW (aparente ≥ 26,7 °C). `sim temp 33` → MEDIUM |
+| 7 | Temperatura acima da atenção | `sim temp 30` e `sim hum 50` | Após 10 s: ALERT TEMPERATURE LOW (aparente ≥ 29,0 °C). `sim temp 33` → MEDIUM |
 | 8 | Temperatura acima do crítico | `sim temp 41` | Após 10 s: ALERT TEMPERATURE HIGH; relé energizado; tela mostra `Temp` e `Feels` |
 | 9 | Umidade abaixo da faixa | `sim temp 22`, `sim hum 28` | Após 30 s: ALERT HUMIDITY LOW; `sim hum 18` → HIGH. Fisicamente, o DHT11 não mede < 20 %UR (doc 05), então só a simulação cobre MEDIUM/HIGH baixos |
 | 10 | Umidade acima da faixa | `sim hum 77` → LOW, `sim hum 82` → MEDIUM, `sim hum 90` → HIGH | Cada nível após 30 s de persistência |

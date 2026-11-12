@@ -35,7 +35,11 @@ TEST(classifier_two_sided_temperature) {
   CHECK(c.update(15) == Severity::Medium);
   CHECK(c.update(11) == Severity::High);
   c.reset();
-  CHECK(c.update(27.0f) == Severity::Low);
+  CHECK(c.update(27.0f) == Severity::Normal);  // LOW starts at 29.0 (user request)
+  CHECK(c.update(29.5f) == Severity::Low);
+  CHECK(c.update(28.5f) == Severity::Low);     // hysteresis 1.0 -> leave below 28
+  CHECK(c.update(27.9f) == Severity::Normal);
+  CHECK(c.update(29.5f) == Severity::Low);
   CHECK(c.update(33.0f) == Severity::Medium);
   CHECK(c.update(40.0f) == Severity::High);
   // apparent vs dry-bulb: hot apparent, normal dry-bulb

@@ -51,7 +51,9 @@ constexpr ThresholdSet GAS_VOLTS = {
 // ---------------------------------------------------------------------------
 // Temperature. "above" uses the APPARENT temperature max(T, heat index)
 // so humidity is considered; "below" uses the dry-bulb temperature.
-//  above LOW    26.7 C (80 F)  NOAA heat-index "Caution"
+//  above LOW    29.0 C         raised by the user from 26.7 C (80 F, NOAA
+//                              "Caution"): the room sits at ~27 C apparent
+//                              and LOW would stay on all the time
 //  above MEDIUM 32.2 C (90 F)  NOAA "Extreme caution"
 //  above HIGH   39.4 C (103 F) NOAA "Danger"
 //  below LOW    18 C  WHO Housing & Health Guidelines (2018) minimum
@@ -59,7 +61,7 @@ constexpr ThresholdSet GAS_VOLTS = {
 //  below HIGH   12 C  UK cold-weather guidance (cardiovascular strain)
 // ---------------------------------------------------------------------------
 constexpr ThresholdSet TEMPERATURE = {
-    /*above*/ {true, 26.7f, 32.2f, 39.4f},
+    /*above*/ {true, 29.0f, 32.2f, 39.4f},
     /*below*/ {true, 18.0f, 16.0f, 12.0f},
     /*hyst */ 1.0f};
 

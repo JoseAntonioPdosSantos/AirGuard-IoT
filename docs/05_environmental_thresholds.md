@@ -15,8 +15,8 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 
 | Constante (conceito) | Faixa | Severidade | Referência |
 |---|---|---|---|
-| TEMPERATURE_NORMAL | 18,0 °C ≤ T e aparente < 26,7 °C | NORMAL | WHO (mínimo de 18 °C); ASHRAE 55 (conforto) |
-| TEMPERATURE_WARNING (quente) | aparente ≥ 26,7 °C (80 °F) | LOW | NOAA/NWS, índice de calor "Caution" |
+| TEMPERATURE_NORMAL | 18,0 °C ≤ T e aparente < 29,0 °C | NORMAL | WHO (mínimo de 18 °C); ASHRAE 55 (conforto) |
+| TEMPERATURE_WARNING (quente) | aparente ≥ 29,0 °C | LOW | Ajuste do usuário: a NOAA/NWS começa o "Caution" em 26,7 °C (80 °F), mas o ambiente fica em ~27 °C de sensação térmica e o alerta ficaria aceso o tempo todo |
 | TEMPERATURE_WARNING (quente) | aparente ≥ 32,2 °C (90 °F) | MEDIUM | NOAA/NWS "Extreme caution" |
 | TEMPERATURE_CRITICAL (quente) | aparente ≥ 39,4 °C (103 °F) | HIGH | NOAA/NWS "Danger" |
 | TEMPERATURE_WARNING (frio) | T ≤ 18,0 °C | LOW | WHO Housing and Health Guidelines (2018) |
