@@ -111,7 +111,10 @@ constexpr uint8_t  ALERT_REMINDER_MIN_SEVERITY = 2;  // MEDIUM
 // true  -> GPIO HIGH energises the relay (NPN driver / high-level trigger).
 // false -> GPIO LOW energises the relay (low-level trigger module driven
 //          directly; only valid if the module is 3.3 V compatible!).
-constexpr bool RELAY_ACTIVE_HIGH = true;
+// Bench: the installed module is a LOW-level trigger (its LED goes off with IN
+// unconnected). Powered from 5 V it does NOT release with 3.3 V on IN: needs
+// VCC 3V3 + JD-VCC 5V (jumper removed) or a transistor. See docs/01_hardware.md.
+constexpr bool RELAY_ACTIVE_HIGH = false;
 // Which categories may switch the relay on HIGH (index = Category).
 //                                   AIR   TEMP  HUM   SYSTEM
 constexpr bool RELAY_ON_HIGH[4] = {true, true, true, false};
