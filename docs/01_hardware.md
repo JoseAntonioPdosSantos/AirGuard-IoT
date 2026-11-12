@@ -17,7 +17,7 @@
 | 4 | Rádio LoRa | **REYAX RYLR998** (SX1262 interno, comandos AT por UART) | 3,3 V | 3,3 V (UART 115200) | Payload máx. **240 bytes**. **Nunca transmitir sem antena** |
 | 5 | Display | OLED **0,96" SSD1306 128×64 I2C, amarelo/azul** | **3,3 V** | 3,3 V | Endereço 0x3C (impresso "0x78") |
 | 6 | Buzzer | **ativo** (oscilador interno) | via GPIO + 1 kΩ | 3,3 V | Ver §4.3 |
-| 7 | Relé | Módulo relé 1 canal, **entrada de nível baixo** (testado na bancada: IN solto → relé solto). Segundo o usuário, o módulo é de **3 V**: o VCC vai no **3V3**. O GPIO23 opera em dreno aberto (`RELAY_OPEN_DRAIN`) **[PENDENTE: confirmar na bancada com o VCC no 3V3]** | **ver §4.4** | IN | Contato NC usado para o LED verde |
+| 7 | Relé | Módulo relé 1 canal de **3 V**, **entrada de nível alto** (bancada: com `RELAY_ACTIVE_HIGH = false` o LED verde ficava invertido). VCC no **3V3** | **ver §4.4** | IN | Contato NC usado para o LED verde |
 | 8 | LED vermelho | LED + 1 kΩ | GPIO | 3,3 V | ~1,3 mA |
 | 9 | LED amarelo | LED + 1 kΩ | GPIO | 3,3 V | ~1,2 mA |
 | 10 | LED verde | LED + 1 kΩ | 3V3 via contato NC do relé | — | Aceso enquanto o relé está desligado |
