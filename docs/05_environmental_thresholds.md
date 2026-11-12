@@ -28,10 +28,10 @@ umidade entra no cálculo. O lado **frio** usa a temperatura de bulbo seco.
 
 | Constante (conceito) | Faixa | Severidade | Referência |
 |---|---|---|---|
-| HUMIDITY_NORMAL | 30 % < UR < 75 % | NORMAL | EPA: manter UR abaixo de 60 %, idealmente entre 30 e 50 % |
-| HUMIDITY_WARNING (alta) | UR ≥ 75 % | LOW | EPA recomenda < 60 % (mofo); elevado para 75 % a pedido do usuário, porque a UR ambiente local fica em 65–70 % |
-| HUMIDITY_WARNING (alta) | UR ≥ 80 % | MEDIUM | UR sustentada > 70–80 % favorece mofo em superfícies. Era 70 %; elevado a pedido do usuário porque a UR ambiente local fica perto de 70 % |
-| HUMIDITY_CRITICAL (alta) | UR ≥ 85 % | HIGH | **protótipo:** condensação provável (vapor intenso, vazamento) |
+| HUMIDITY_NORMAL | 30 % < UR < 80 % | NORMAL | EPA: manter UR abaixo de 60 %, idealmente entre 30 e 50 % |
+| HUMIDITY_WARNING (alta) | UR ≥ 80 % | LOW | EPA recomenda < 60 % (mofo); elevado a pedido do usuário para 75 % e depois 80 %, porque a UR ambiente local chega a ~76 % |
+| HUMIDITY_WARNING (alta) | UR ≥ 85 % | MEDIUM | UR sustentada > 70–80 % favorece mofo em superfícies. Era 70 %; elevado a pedido do usuário para 80 % e depois 85 % |
+| HUMIDITY_CRITICAL (alta) | UR ≥ 90 % | HIGH | **protótipo:** condensação provável (vapor intenso, vazamento). Era 85 %. 90 % é o topo da faixa do DHT11 (20–90 %UR) |
 | HUMIDITY_WARNING (baixa) | UR ≤ 30 % | LOW | EPA (limite inferior recomendado) |
 | HUMIDITY_WARNING (baixa) | UR ≤ 25 % | MEDIUM | **protótipo:** ressecamento e irritação |
 | HUMIDITY_CRITICAL (baixa) | UR ≤ 20 % | HIGH | **protótipo** |

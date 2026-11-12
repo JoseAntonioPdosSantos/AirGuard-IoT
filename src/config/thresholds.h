@@ -68,15 +68,16 @@ constexpr ThresholdSet TEMPERATURE = {
 // ---------------------------------------------------------------------------
 // Relative humidity (%)
 //  30..60 %   EPA recommended indoor range (ideally 30-50 %)
-//  > 75 % LOW  EPA says keep below 60 % (mould risk); raised to 75 % by the
-//              user (local ambient RH ~65-70 % would keep LOW always on)
-//  > 80 % MED  sustained RH >70-80 % favours mould growth on surfaces
-//              (raised from 70 % by the user: local ambient RH is often ~70 %)
-//  > 85 % HIGH prototype: condensation-prone, steam/leak suspected
+//  > 80 % LOW  EPA says keep below 60 % (mould risk); raised by the user to
+//              75 % and then 80 % (local ambient RH reaches ~76 %)
+//  > 85 % MED  sustained RH >70-80 % favours mould growth on surfaces
+//              (raised by the user from 70 % to 80 % and then 85 %)
+//  > 90 % HIGH prototype: condensation-prone, steam/leak suspected (was 85 %).
+//              90 % is the top of the DHT11 range (20-90 %RH)
 //  < 30 % LOW, < 25 % MED, < 20 % HIGH: dryness/irritation (prototype)
 // ---------------------------------------------------------------------------
 constexpr ThresholdSet HUMIDITY = {
-    /*above*/ {true, 75.0f, 80.0f, 85.0f},
+    /*above*/ {true, 80.0f, 85.0f, 90.0f},
     /*below*/ {true, 30.0f, 25.0f, 20.0f},
     /*hyst */ 3.0f};
 

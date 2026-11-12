@@ -50,10 +50,12 @@ TEST(classifier_two_sided_temperature) {
 TEST(classifier_humidity) {
   HysteresisClassifier c(thr::HUMIDITY);
   CHECK(c.update(45) == Severity::Normal);
-  CHECK(c.update(71) == Severity::Normal);  // LOW starts at 75 %
-  CHECK(c.update(76) == Severity::Low);     // MEDIUM starts at 80 %
-  CHECK(c.update(81) == Severity::Medium);
-  CHECK(c.update(86) == Severity::High);
+  CHECK(c.update(76) == Severity::Normal);  // LOW starts at 80 % (user request)
+  CHECK(c.update(81) == Severity::Low);     // MEDIUM starts at 85 %
+  CHECK(c.update(78) == Severity::Low);     // hysteresis 3 -> leave below 77
+  CHECK(c.update(76) == Severity::Normal);
+  CHECK(c.update(86) == Severity::Medium);
+  CHECK(c.update(91) == Severity::High);
   c.reset();
   CHECK(c.update(29) == Severity::Low);
   CHECK(c.update(24) == Severity::Medium);
