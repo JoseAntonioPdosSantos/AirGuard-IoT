@@ -13,7 +13,7 @@ void RelayManager::write(bool on) {
 
 void RelayManager::begin() {
   write(false);  // latch the inactive level first...
-  pinMode(pins::RELAY, OUTPUT);
+  pinMode(pins::RELAY, (cfg::RELAY_OPEN_DRAIN && !cfg::RELAY_ACTIVE_HIGH) ? OUTPUT_OPEN_DRAIN : OUTPUT);
   write(false);  // ...then drive it
   on_ = false;
 }

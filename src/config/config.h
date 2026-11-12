@@ -115,6 +115,11 @@ constexpr uint8_t  ALERT_REMINDER_MIN_SEVERITY = 2;  // MEDIUM
 // unconnected). Powered from 5 V it does NOT release with 3.3 V on IN: needs
 // VCC 3V3 + JD-VCC 5V (jumper removed) or a transistor. See docs/01_hardware.md.
 constexpr bool RELAY_ACTIVE_HIGH = false;
+// true -> the pin is open-drain: LOW energises, "HIGH" is high-impedance and
+// the module's own pull-up (5 V) releases the relay. Needed here because a
+// push-pull HIGH (3.3 V) leaves ~0.6 V over the opto resistor and the relay
+// never releases. Only meaningful with RELAY_ACTIVE_HIGH = false.
+constexpr bool RELAY_OPEN_DRAIN = true;
 // Which categories may switch the relay on HIGH (index = Category).
 //                                   AIR   TEMP  HUM   SYSTEM
 constexpr bool RELAY_ON_HIGH[4] = {true, true, true, false};
