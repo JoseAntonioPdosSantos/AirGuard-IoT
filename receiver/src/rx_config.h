@@ -43,15 +43,31 @@ constexpr uint32_t LORA_REINIT_PERIOD_MS = 30000;
 // The node in voltage mode sends air_index = 100 * V(AO) / 5 V, so V = index / 20.
 constexpr bool     AIR_INDEX_IS_VOLTAGE = true;
 constexpr uint32_t LCD_PAGE_MS          = 3000;  // line 2 alternates values / link info
+// A WhatsApp message relayed by the node (TEXT frame) replaces the normal
+// screen for at most LCD_TEXT_MS, in up to LCD_TEXT_PAGES pages of 2 x 16
+// characters; then the node's data is shown again. It appears LCD_TEXT_TIMES
+// times (the node's OLED also passes it twice), with the normal screen back
+// for LCD_TEXT_GAP_MS in between.
+constexpr uint32_t LCD_TEXT_MS          = 5000;
+constexpr uint8_t  LCD_TEXT_PAGES       = 2;
+constexpr uint8_t  LCD_TEXT_TIMES       = 2;
+constexpr uint32_t LCD_TEXT_GAP_MS      = 2000;
 constexpr uint32_t WAIT_BLINK_MS        = 500;   // green blink before the first message
+constexpr uint32_t MSG_BLINK_MS         = 125;   // green blink (4 Hz) while a WhatsApp message is on the LCD
 constexpr uint32_t WATCHDOG_MS          = 8000;
 // The node sends a heartbeat every 5 s: nothing for 15 s (3 missed) = lost signal.
 constexpr uint32_t LINK_TIMEOUT_MS      = 15000;
 // Receiver status (STAT frame) for the node, which forwards it to AirGuard Web:
 // sent STAT_DELAY_MS after a heartbeat (the node has just finished transmitting
-// and is listening), at most every STAT_PERIOD_MS; every STAT_IDLE_MS when no
-// heartbeat arrives (it then reports lost=1).
-constexpr uint32_t STAT_PERIOD_MS = 15000;
+// and stays silent for its 2 s gap between transmissions, cfg::TX_MIN_GAP_MS,
+// so the STAT does not collide with it), every STAT_PERIOD_MS; every
+// STAT_IDLE_MS when no heartbeat arrives (it then reports lost=1).
+// 5 s = one STAT after every heartbeat (was 15 s; user request).
+constexpr uint32_t STAT_PERIOD_MS = 5000;
+// The previous STAT left a little after the heartbeat that caused it, and the
+// heartbeats do not arrive exactly on time: a heartbeat this much "early"
+// still gets its STAT.
+constexpr uint32_t STAT_SLACK_MS  = 1000;
 constexpr uint32_t STAT_DELAY_MS  = 250;
 constexpr uint32_t STAT_IDLE_MS   = 30000;
 

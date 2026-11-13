@@ -1,7 +1,8 @@
 // AirGuard IoT - LoRa application protocol v1 (compact JSON, platform independent).
 // Full specification: docs/03_lora_protocol.md
 //
-// Outgoing: ALERT, RECOVERY (events, require ACK), ACK (reply, no ACK).
+// Outgoing: ALERT, RECOVERY (events, require ACK), ACK (reply, no ACK), HB
+// (heartbeat, no ACK), TEXT (a WhatsApp message for the receiver's LCD, no ACK).
 // Incoming: TEXT (display + ACK), ACK (confirms one of our events, may carry
 // the receiver's rssi/snr), STAT (receiver status, forwarded to AirGuard Web).
 // The parser accepts only a flat JSON object with string/number/bool/null
@@ -90,6 +91,14 @@ size_t encodeAck(const char* device, const char* dst, uint32_t ackFor, char* buf
 size_t encodeHeartbeat(const char* device, const char* dst, uint32_t seq,
                        const Severity levels[CATEGORY_COUNT], const SensorSnapshot& s,
                        uint32_t uptimeS, char* buf, size_t cap);
+
+// TEXT for the receiver's LCD: a WhatsApp message relayed by the node (no ACK).
+//   {"type":"TEXT","device":"KITCHEN_01","dst":"GATEWAY_01","message_id":7,"text":"Maria: oi"}
+// The radio limits a frame to cfg::LORA_MAX_PAYLOAD bytes: the text is cut (at
+// a character boundary) to what fits. `textUsed`, if given, receives how many
+// bytes of `text` were sent. Returns the payload length (0 = nothing to send).
+size_t encodeText(const char* device, const char* dst, uint32_t messageId, const char* text,
+                  char* buf, size_t cap, size_t* textUsed = nullptr);
 
 // Validates and decodes an incoming frame. `ownId` is used to drop frames
 // explicitly addressed to another node (dst present and != ownId and != "*").

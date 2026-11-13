@@ -200,6 +200,48 @@ size_t encodeHeartbeat(const char* device, const char* dst, uint32_t seq,
   return w.finish();
 }
 
+size_t encodeText(const char* device, const char* dst, uint32_t messageId, const char* text,
+                  char* buf, size_t cap, size_t* textUsed) {
+  if (textUsed) *textUsed = 0;
+  if (!text || !text[0]) return 0;
+  if (cap > cfg::LORA_MAX_PAYLOAD + 1) cap = cfg::LORA_MAX_PAYLOAD + 1;
+  // Size of the frame around the text: {"type":...,"message_id":N,"text":""}
+  size_t base;
+  {
+    JsonWriter w(buf, cap);
+    w.str("type", "TEXT");
+    w.str("device", device);
+    w.str("dst", dst);
+    w.unum("message_id", messageId);
+    w.str("text", "");
+    base = w.finish();
+  }
+  if (base == 0 || base >= cap - 1) return 0;
+  const size_t room = cap - 1 - base;
+  // How much of the text fits once escaped ('"' and '\\' take 2 bytes, a
+  // control character 6).
+  size_t n = 0, used = 0;
+  while (text[n]) {
+    const unsigned char c = static_cast<unsigned char>(text[n]);
+    const size_t cost = (c == '"' || c == '\\') ? 2 : (c < 0x20 ? 6 : 1);
+    if (used + cost > room) break;
+    used += cost;
+    ++n;
+  }
+  // Do not cut a multi-byte UTF-8 character in half.
+  if (text[n]) while (n > 0 && (static_cast<unsigned char>(text[n]) & 0xC0) == 0x80) --n;
+  if (n == 0) return 0;
+  JsonWriter w(buf, cap);
+  w.str("type", "TEXT");
+  w.str("device", device);
+  w.str("dst", dst);
+  w.unum("message_id", messageId);
+  w.strn("text", text, n);
+  const size_t len = w.finish();
+  if (len && textUsed) *textUsed = n;
+  return len;
+}
+
 // ===========================================================================
 // Parser (flat object only)
 // ===========================================================================

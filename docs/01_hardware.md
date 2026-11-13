@@ -21,10 +21,22 @@
 | 8 | LED vermelho | LED + 1 kΩ | GPIO | 3,3 V | ~1,3 mA |
 | 9 | LED amarelo | LED + 1 kΩ | GPIO | 3,3 V | ~1,2 mA |
 | 10 | LED verde | LED + 1 kΩ | 3V3 via contato NC do relé | — | Aceso enquanto o relé está desligado |
-| 11 | Resistores | 3× 10 kΩ (divisor MQ-135); 4× 1 kΩ | — | — | 1 % recomendado no divisor |
+| 10a | LED azul (mensagem do WhatsApp) | LED + **230 Ω** | GPIO | 3,3 V | ~1 mA (estimado: o LED azul derruba ~3 V; não medido). Pisca quando chega uma mensagem do WhatsApp (doc 12) |
+| 11 | Resistores | 3× 10 kΩ (divisor MQ-135); 4× 1 kΩ; 1× 230 Ω (LED azul) | — | — | 1 % recomendado no divisor |
 | 12 | Fonte | 5 V / ≥ 2 A regulada | — | — | Ver §5 |
 
 ## 2. Ligações (`src/config/hardware_pins.h`)
+
+Folha para imprimir (A4, 3 folhas: diagrama e lista do sensor, diagrama e lista do receptor):
+[`pinagem/AirGuard-pinagem.pdf`](pinagem/AirGuard-pinagem.pdf). Ela é gerada por
+`tools/pinagem.py`, que lê os números dos pinos deste arquivo de configuração e do
+`receiver/src/rx_config.h`. Depois de mudar um pino, gere de novo:
+
+```
+python3 tools/pinagem.py
+google-chrome --headless --no-pdf-header-footer \
+  --print-to-pdf=docs/pinagem/AirGuard-pinagem.pdf docs/pinagem/pinagem.html
+```
 
 | Componente | Pino do módulo | ESP32 DevKit | Observação |
 |---|---|---|---|
@@ -47,6 +59,7 @@
 | **Buzzer** | + | 1 kΩ → **GPIO25** | (−) no GND |
 | **LED vermelho** | ânodo | 1 kΩ → **GPIO26** | cátodo no GND |
 | **LED amarelo** | ânodo | 1 kΩ → **GPIO33** | cátodo no GND |
+| **LED azul** (mensagem) | ânodo (perna longa) | **230 Ω** → **GPIO32** | cátodo (perna curta) no GND |
 | **Relé (módulo)** | IN | **GPIO23** | VCC do módulo conforme o modelo (§4.4) |
 | **LED verde** | — | 3V3 → 1 kΩ → LED → contato **NC** do relé, COM → GND | sem GPIO (§4.5) |
 
@@ -81,6 +94,7 @@
         │               GPIO25 ─[1k]── Buzzer(+)  Buzzer(−) ── GND  │
         │               GPIO26 ─[1k]──►|── GND (LED vermelho)       │
         │               GPIO33 ─[1k]──►|── GND (LED amarelo)        │
+        │               GPIO32 ─[230]─►|── GND (LED azul: mensagem) │
         │               GPIO23 ──────── Relé IN                     │
         └──[1k]──►|── Relé NC      Relé COM ── GND   (LED verde)    │
                                                    └────────────────┘

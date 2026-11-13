@@ -56,6 +56,13 @@ O plano tem dois níveis:
 | 22 | Recuperação da condição crítica | `sim air 3`, aguardar o HIGH, depois `sim air 0.2` | Após `AIR_RECOVER_MS` estável: **RECOVERY** AIR_QUALITY (`prev` HIGH) com ACK; buzzer para; relé liberado e LED verde aceso; LEDs amarelo/vermelho apagados; tela principal |
 | 23 | Reinicialização durante alerta | Em HIGH (teste 6), digitar `reboot` (ou cortar a energia) | No boot: log `restored HIGH state`; relé e buzzer reativados; ALERT `note: RESTORED` enviado; com `sim air` desligado e o sensor em ar limpo, a recuperação só ocorre **após o aquecimento + 60 s** |
 
+| 24 | Código de conexão do WhatsApp no OLED | Número da conta já informado na aba WhatsApp e nenhuma conta conectada; ligar o ESP32 | Log `pairing: code on the OLED`; OLED com `WhatsApp`, `Codigo de conexao` e o código `XXXX-XXXX`; a página WhatsApp mostra o mesmo código; sem leitura, volta à tela normal quando o WhatsApp encerra a tentativa |
+| 25 | Mensagem do WhatsApp sem alerta | `sim wa Ola da bancada` (ou enviar uma mensagem real ao número conectado) | Faixa amarela: `Teste: Ola da bancada` passa 2 vezes, mais devagar que as medições, e o cabeçalho volta; log `message #… shown`; LCD do receptor mostra o texto por até 5 s, volta à tela normal por 2 s e mostra o texto de novo por até 5 s; **LED azul (GPIO32) pisca a 4 Hz por 5 s** e o LED verde do receptor pisca enquanto a mensagem está no LCD |
+| 26 | Mensagem do WhatsApp durante alerta | `sim temp 31`, aguardar o LOW, `sim wa teste` | Log `ignored: alert active`; nada na faixa amarela nem no LCD; a página WhatsApp marca `ignorada: alerta ativo` |
+| 27 | Alerta começa com mensagem na tela | `sim wa texto bem comprido…`, depois `sim air 1.8` | A mensagem sai da faixa amarela na hora; a tela de alerta aparece; a fila de mensagens é esvaziada |
+| 28 | Aviso de alerta pelo WhatsApp | Com a conta conectada: `sim air 1.8`, depois `sim air off` | WhatsApp (conversa com o próprio número): **ALERTA**, Gás, gravidade ALTA, relé desligou a energia; ~3 s depois de normalizar: **NORMALIZADO** e relé religou; a página lista os avisos como `enviado` |
+| 29 | Texto maior que a tela do LCD | `sim wa` com mais de 64 caracteres | LCD: 2 páginas de 2,5 s, a última linha termina em `...`; depois de 5 s volta a tela normal por 2 s e as 2 páginas passam mais uma vez |
+
 Para todos os cenários, após o teste, use `sim off` e verifique o retorno ao normal.
 
 ## 4. Testes de integração adicionais recomendados

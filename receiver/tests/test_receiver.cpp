@@ -96,6 +96,38 @@ TEST(rx_state_drives_leds) {
   CHECK(st.led() == Led::Green);
 }
 
+TEST(rx_green_led_blinks_fast_while_a_message_is_on_the_lcd) {
+  // no message: exactly as before (steady in NORMAL, 1 Hz before the first frame, off otherwise)
+  CHECK(greenLed(Led::Green, false, 0, 500, 125));
+  CHECK(greenLed(Led::Green, false, 777, 500, 125));
+  CHECK(greenLed(Led::WaitingBlink, false, 0, 500, 125));
+  CHECK(!greenLed(Led::WaitingBlink, false, 500, 500, 125));
+  CHECK(greenLed(Led::WaitingBlink, false, 1000, 500, 125));
+  CHECK(!greenLed(Led::Yellow, false, 0, 500, 125));
+  CHECK(!greenLed(Led::Red, false, 0, 500, 125));
+  CHECK(!greenLed(Led::LostBlink, false, 0, 500, 125));
+  // message on the LCD: 4 Hz, whatever the green LED was doing
+  const Led normal[] = {Led::Green, Led::WaitingBlink, Led::LostBlink};
+  for (Led l : normal) {
+    CHECK(greenLed(l, true, 0, 500, 125));
+    CHECK(!greenLed(l, true, 125, 500, 125));
+    CHECK(greenLed(l, true, 250, 500, 125));
+    CHECK(!greenLed(l, true, 499, 500, 125));
+  }
+  // 5 s of message = 20 flashes
+  int flashes = 0;
+  bool prev = false;
+  for (uint32_t t = 0; t < 5000; ++t) {
+    const bool on = greenLed(Led::Green, true, t, 500, 125);
+    if (on && !prev) ++flashes;
+    prev = on;
+  }
+  CHECK_EQ(flashes, 20);
+  // an alert owns the LEDs: green stays off even if a message were still marked as shown
+  CHECK(!greenLed(Led::Yellow, true, 0, 500, 125));
+  CHECK(!greenLed(Led::Red, true, 0, 500, 125));
+}
+
 TEST(rx_lcd_lines_fit_16_columns) {
   ReceiverState st;
   char l1[17], l2[17];
@@ -178,4 +210,160 @@ TEST(rx_stat_frame_fits_the_radio) {
   CHECK(n > 0 && n < 240);
   CHECK(strstr(b, "\"type\":\"STAT\""));
   CHECK(strstr(b, "\"rssi\":-120,\"snr\":-20"));
+}
+
+// ---- WhatsApp message relayed by the node (TEXT frame) -----------------------
+static ParseResult parseTxt(const char* s, TextMsg& t) { return parseText(s, strlen(s), t); }
+
+TEST(rx_parses_text_frame) {
+  TextMsg t;
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"dst\":\"GATEWAY_01\",\"message_id\":7,"
+                 "\"text\":\"Maria: Chego em 10 min\"}", t) == ParseResult::Ok);
+  CHECK_STR(t.device, "KITCHEN_01");
+  CHECK_STR(t.dst, "GATEWAY_01");
+  CHECK_EQ(t.id, 7u);
+  CHECK_STR(t.text, "Maria: Chego em 10 min");
+  // escapes written by the node's JSON writer; a key name inside the text is not a key
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"message_id\":4294967295,"
+                 "\"text\":\"a \\\"b\\\" \\\\ c\\u0041 ,\\\"text\\\":\\\"x\"}", t) == ParseResult::Ok);
+  CHECK_EQ(t.id, 4294967295u);
+  CHECK_STR(t.dst, "");
+  CHECK_STR(t.text, "a \"b\" \\ cA ,\"text\":\"x");
+}
+
+TEST(rx_text_frame_rejections) {
+  TextMsg t;
+  Event e;
+  Heartbeat h;
+  const char* txt = "{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"message_id\":1,\"text\":\"oi\"}";
+  CHECK(parseTxt(txt, t) == ParseResult::Ok);
+  // the other parsers pass a TEXT on, and parseText passes the other frames on
+  CHECK(parseEvent(txt, strlen(txt), e) == ParseResult::NotEvent);
+  CHECK(parseHeartbeat(txt, strlen(txt), h) == ParseResult::NotEvent);
+  CHECK(parseTxt(kAlert, t) == ParseResult::NotEvent);
+  CHECK(parseTxt("oi", t) == ParseResult::NotJson);
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"message_id\":1}", t) == ParseResult::MissingField);
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"message_id\":1,\"text\":\"oi\"}", t) == ParseResult::MissingField);
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"text\":\"oi\"}", t) == ParseResult::MissingField);
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"message_id\":1,\"text\":\"\"}", t) == ParseResult::BadValue);
+  CHECK(parseTxt("{\"type\":\"TEXT\",\"device\":\"KITCHEN_01\",\"message_id\":1,\"text\":\"a\\q\"}", t) ==
+        ParseResult::MissingField);  // invalid escape
+  CHECK_STR(t.text, "");
+}
+
+TEST(rx_lcd_message_one_page_stays_5_seconds) {
+  LcdMessage m;
+  char l1[17], l2[17];
+  CHECK(!m.active(0));
+  CHECK(m.show("Maria: Chego em 10 min", 1000, 5000, 2));
+  CHECK_EQ(m.pages(), 1);
+  CHECK(!m.cut());
+  m.lines(1000, l1, l2);
+  CHECK_STR(l1, "Maria: Chego em ");
+  CHECK_STR(l2, "10 min          ");
+  CHECK(m.active(1000) && m.active(5999));
+  m.lines(5999, l1, l2);
+  CHECK_STR(l1, "Maria: Chego em ");            // same page for the whole time
+  CHECK(!m.active(6000));                        // at most 5 s
+}
+
+TEST(rx_lcd_message_two_pages_share_the_time) {
+  LcdMessage m;
+  char l1[17], l2[17];
+  // 16 + 16 + 16 + 5 characters once wrapped
+  CHECK(m.show("AAAAAAAAAAAAAAAA BBBBBBBBBBBBBBBB CCCCCCCCCCCCCCCC DDDDD", 0, 5000, 2));
+  CHECK_EQ(m.pages(), 2);
+  CHECK(!m.cut());
+  m.lines(0, l1, l2);
+  CHECK_STR(l1, "AAAAAAAAAAAAAAAA");
+  CHECK_STR(l2, "BBBBBBBBBBBBBBBB");
+  m.lines(2499, l1, l2);
+  CHECK_STR(l1, "AAAAAAAAAAAAAAAA");
+  m.lines(2500, l1, l2);
+  CHECK_STR(l1, "CCCCCCCCCCCCCCCC");
+  CHECK_STR(l2, "DDDDD           ");
+  CHECK(m.active(4999));
+  CHECK(!m.active(5000));
+}
+
+TEST(rx_lcd_message_longer_text_is_cut_with_dots) {
+  LcdMessage m;
+  char l1[17], l2[17];
+  CHECK(m.show("um dois tres quatro cinco seis sete oito nove dez onze doze treze catorze quinze "
+               "dezesseis dezessete dezoito dezenove vinte", 0, 5000, 2));
+  CHECK_EQ(m.pages(), 2);
+  CHECK(m.cut());
+  m.lines(0, l1, l2);
+  CHECK_STR(l1, "um dois tres    ");
+  CHECK_STR(l2, "quatro cinco    ");
+  m.lines(4000, l1, l2);
+  CHECK_STR(l1, "seis sete oito  ");
+  CHECK_STR(l2, "nove dez onze...");
+  // a word longer than a line is split, not lost
+  CHECK(m.show("ABCDEFGHIJKLMNOPQRSTUVWXYZ", 0, 5000, 2));
+  m.lines(0, l1, l2);
+  CHECK_STR(l1, "ABCDEFGHIJKLMNOP");
+  CHECK_STR(l2, "QRSTUVWXYZ      ");
+  CHECK(!m.cut());
+}
+
+TEST(rx_lcd_message_appears_twice_with_the_normal_screen_in_between) {
+  LcdMessage m;
+  char l1[17], l2[17];
+  // one page: 5 s, normal screen for 2 s, 5 s again, then over
+  CHECK(m.show("Maria: Chego em 10 min", 1000, 5000, 2, 2, 2000));
+  CHECK(m.active(1000) && m.active(5999));
+  CHECK_EQ(m.appearance(1000), 1);
+  CHECK(!m.active(6000) && !m.active(7999));       // gap: the node's data is back
+  CHECK(m.active(8000) && m.active(12999));
+  CHECK_EQ(m.appearance(8000), 2);
+  m.lines(8000, l1, l2);
+  CHECK_STR(l1, "Maria: Chego em ");
+  CHECK_STR(l2, "10 min          ");
+  CHECK(!m.active(13000));                          // only twice
+  CHECK(!m.active(15000) && !m.active(60000));
+  // two pages: each appearance starts again at the first page
+  CHECK(m.show("AAAAAAAAAAAAAAAA BBBBBBBBBBBBBBBB CCCCCCCCCCCCCCCC DDDDD", 0, 5000, 2, 2, 2000));
+  m.lines(0, l1, l2);
+  CHECK_STR(l1, "AAAAAAAAAAAAAAAA");
+  m.lines(2500, l1, l2);
+  CHECK_STR(l1, "CCCCCCCCCCCCCCCC");
+  m.lines(7000, l1, l2);
+  CHECK_STR(l1, "AAAAAAAAAAAAAAAA");
+  m.lines(9499, l1, l2);
+  CHECK_STR(l1, "AAAAAAAAAAAAAAAA");
+  m.lines(9500, l1, l2);
+  CHECK_STR(l1, "CCCCCCCCCCCCCCCC");
+  CHECK(m.active(11999) && !m.active(12000));
+  // an alert in the gap cancels the second appearance too
+  CHECK(m.show("oi", 0, 5000, 2, 2, 2000));
+  m.cancel();
+  CHECK(!m.active(7500));
+  // a new message replaces the one waiting for its second appearance
+  CHECK(m.show("primeira", 0, 5000, 2, 2, 2000));
+  CHECK(m.show("segunda", 6000, 5000, 2, 2, 2000));
+  CHECK(m.active(6000));
+  m.lines(6000, l1, l2);
+  CHECK_STR(l1, "segunda         ");
+  CHECK(!m.active(11000) && m.active(13000) && !m.active(18000));
+  // millis() wrap-around across the two appearances
+  CHECK(m.show("oi", 0xFFFFF000u, 5000, 2, 2, 2000));
+  CHECK(m.active(0x00000100u));                     // 4.35 s in
+  CHECK(!m.active(0x00000800u));                    // 6.1 s in: gap
+  CHECK(m.active(0x00001800u));                     // 10.2 s in: second time
+  CHECK(!m.active(0x00002F00u));                    // 16 s in: over
+}
+
+TEST(rx_lcd_message_cancel_and_empty) {
+  LcdMessage m;
+  CHECK(!m.show("    ", 0, 5000, 2));           // nothing printable
+  CHECK(!m.active(0));
+  CHECK(!m.show(nullptr, 0, 5000, 2));
+  CHECK(m.show("oi", 0, 5000, 2));
+  m.cancel();                                    // an alert arrived
+  CHECK(!m.active(1));
+  // millis() wrap-around
+  CHECK(m.show("oi", 0xFFFFF000u, 5000, 2));
+  CHECK(m.active(0x00000100u));
+  CHECK(!m.active(0x00000400u));
 }

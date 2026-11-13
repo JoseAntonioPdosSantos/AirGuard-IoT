@@ -39,7 +39,7 @@ constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
 // "@T env" telemetry line on USB serial for the AirGuard Web dashboard
 // (docs/11_telemetry.md). 0 = no periodic snapshot (radio records still sent).
 // Telemetry for AirGuard Web (docs/11_telemetry.md): sent over Wi-Fi by net/uplink.
-constexpr const char* UPLINK_DEFAULT_BROKER = "192.168.1.10:1883";  // MQTT broker (laptop)
+constexpr const char* UPLINK_DEFAULT_BROKER = "";  // MQTT broker host[:port]; set in net_secrets.h or with "net broker"
 constexpr uint16_t UPLINK_MQTT_PORT       = 1883;   // when the broker has no ":port"
 constexpr uint16_t UPLINK_MQTT_KEEPALIVE_S = 30;
 constexpr uint16_t UPLINK_MQTT_TIMEOUT_S  = 4;
@@ -146,6 +146,28 @@ constexpr uint8_t  OLED_HEIGHT     = 64;
 constexpr uint32_t I2C_CLOCK_HZ    = 400000;
 constexpr uint32_t REMOTE_MSG_PAGE_MS = 3000;  // each page shown exactly 3 s
 constexpr uint8_t  REMOTE_MSG_QUEUE   = 4;
+
+// ---------------------------------------------------------------------------
+// WhatsApp link (docs/12_whatsapp.md). AirGuard Web keeps the WhatsApp session;
+// this node only exchanges MQTT messages with it (net/uplink) and shows them.
+// ---------------------------------------------------------------------------
+// A received message scrolls in the yellow band, slower than the measurements
+// (DISPLAY_TICKER_PX_PER_S), and crosses the screen this many times.
+constexpr uint32_t WA_TICKER_PX_PER_S = 25;
+constexpr uint8_t  WA_TICKER_PASSES   = 2;
+constexpr uint8_t  WA_MSG_QUEUE       = 4;     // messages waiting for the yellow band
+// Message LED (blue, pins::LED_MSG): blinks when a WhatsApp message arrives and is
+// accepted for the display (never during an alert). Same rhythm and time as
+// the receiver's green LED while the message is on its LCD.
+constexpr uint32_t WA_LED_BLINK_MS    = 5000;  // how long it blinks per message
+constexpr uint32_t WA_LED_HALF_MS     = 125;   // on / off time: 4 Hz
+constexpr size_t   WA_TEXT_MAX        = 120;   // chars of "sender: text" shown / relayed
+constexpr uint16_t WA_CODE_DEFAULT_TTL_S = 160;  // when the server does not say how long a pairing code lives
+// The node's state (alert levels, relay) is published retained on MQTT when it
+// changes and re-published this often (repairs a lost QoS 0 publish).
+constexpr uint32_t WA_STATE_PERIOD_MS = 30000;
+constexpr size_t   UPLINK_MQTT_RX_BUFFER = 1280;  // largest MQTT packet received (a WhatsApp message, escaped)
+constexpr size_t   UPLINK_EVENT_BYTES = 1024;     // events for AirGuard Web waiting for the broker
 
 // ---------------------------------------------------------------------------
 // LoRa radio: REYAX RYLR998 (SX1262 inside, UART AT commands).

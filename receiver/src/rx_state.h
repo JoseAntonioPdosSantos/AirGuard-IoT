@@ -48,6 +48,12 @@ class ReceiverState {
   uint32_t lastMs_ = 0, events_ = 0, heartbeats_ = 0;
 };
 
+// Level of the green LED. While a WhatsApp message is on the LCD it blinks
+// fast (half period `msgHalfMs`), so it cannot be taken for the slow blink of
+// "nothing received yet" (`waitHalfMs`); otherwise it follows `l` as before.
+// A message is only on the LCD when no alert is active.
+bool greenLed(Led l, bool messageOnLcd, uint32_t nowMs, uint32_t waitHalfMs, uint32_t msgHalfMs);
+
 // Which heartbeats were heard: the node numbers them 1, 2, 3... A gap in the
 // sequence = heartbeats lost on the air. A smaller seq = the node rebooted.
 class HbTracker {

@@ -2,7 +2,7 @@
 //
 // The node writes them on the USB serial port, mixed with the normal log:
 //   @T {"src":"node","k":"env","ms":12345,...}\r\n
-// A bridge on the laptop (AirGuard-Web/bridge/serial_bridge.py) keeps only the
+// A bridge on the PC (AirGuard-Web/bridge/serial_bridge.py) keeps only the
 // lines that start with "@T ", stamps them with the PC clock and sends them to
 // the web server. Record kinds and fields: docs/11_telemetry.md.
 #pragma once

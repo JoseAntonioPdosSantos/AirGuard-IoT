@@ -58,6 +58,12 @@ Led ReceiverState::led(uint32_t now, uint32_t timeoutMs) const {
   }
 }
 
+bool greenLed(Led l, bool messageOnLcd, uint32_t now, uint32_t waitHalfMs, uint32_t msgHalfMs) {
+  if (messageOnLcd && l != Led::Yellow && l != Led::Red) return msgHalfMs == 0 || (now / msgHalfMs) % 2 == 0;
+  if (l == Led::WaitingBlink) return waitHalfMs == 0 || (now / waitHalfMs) % 2 == 0;
+  return l == Led::Green;
+}
+
 void HbTracker::onHeartbeat(uint32_t seq) {
   if (any_ && seq == last_) return;  // same frame twice
   ++received_;

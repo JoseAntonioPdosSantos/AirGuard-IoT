@@ -50,6 +50,11 @@
 - Uma mensagem só é entregue com até 6 transmissões em ~6 min. Depois disso, a falha é
   registrada, mas não há outro canal de comunicação.
 
+## WhatsApp
+
+Ver [doc 12](12_whatsapp.md): nomes da agenda e número da conta guardados em texto claro no servidor, avisos em QoS 0, biblioteca
+não oficial, chaves da sessão guardadas no servidor, texto em claro no Wi-Fi e no LoRa.
+
 ## Firmware
 
 - O envio de um quadro ao OLED leva ~23 ms bloqueantes (biblioteca Adafruit) e a leitura do

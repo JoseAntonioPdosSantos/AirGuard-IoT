@@ -154,6 +154,19 @@ um período de 30–60 s reduz a ocupação do canal e o consumo.
 {"v":1,"type":"ACK","device":"KITCHEN_01","dst":"WHATSAPP_GATEWAY","ack_for":205}
 ```
 
+#### TEXT (mensagem do WhatsApp para o LCD do receptor, não exige ACK)
+
+Quando o AirGuard Web entrega ao nó uma mensagem recebida no WhatsApp (doc 12) e não há alerta, o
+nó a repassa ao receptor, que a mostra no LCD duas vezes, por até 5 s cada.
+
+```json
+{"type":"TEXT","device":"KITCHEN_01","dst":"GATEWAY_01","message_id":7,"text":"Maria: Chego em 10 min"}
+```
+
+O texto vai em ASCII (o mesmo que passa no OLED) e é **cortado para o quadro caber em 240 bytes**:
+sobram ~150 caracteres. Prioridade mínima, como o heartbeat; só o texto mais novo espera pelo rádio.
+Tempo no ar de um quadro cheio: ~0,7 s em SF8.
+
 ### 3.3 Mensagens recebidas pelo nó
 
 #### TEXT (exibida no OLED por 3 s; o nó responde com ACK)

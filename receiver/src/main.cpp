@@ -2,6 +2,9 @@
 // shows them on a 16x2 I2C LCD and on three LEDs:
 //   green = normal, yellow = LOW / MEDIUM, red = HIGH (green blinks while
 //   no message has been received yet).
+// A WhatsApp message relayed by the node (TEXT frame) is shown on the LCD
+// twice, for at most 5 s each time, with the green LED blinking fast; then
+// the node's data comes back. An alert is never hidden.
 // Board: Waveshare RP2040-Zero (Arduino-Pico core). Wiring: receiver/README.md.
 #include <Arduino.h>
 #include <Wire.h>
@@ -21,6 +24,9 @@ LcdView           g_lcd;
 rx::ReceiverState g_state;
 rx::SeenIds       g_seen;
 int               g_lastRssi = 0;
+
+rx::LcdMessage    g_msg;   // WhatsApp message on the LCD (TEXT frame)
+uint32_t          g_texts = 0;
 
 rx::HbTracker     g_hb;
 uint32_t          g_dups = 0, g_bad = 0;
@@ -98,7 +104,7 @@ void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr,
     g_hb.onHeartbeat(hb.seq);
     g_nodeAddr = from;
     g_lastSnr = snr;
-    if (!g_statDue && (uint32_t)(now - g_lastStatMs) >= rxcfg::STAT_PERIOD_MS) {
+    if (!g_statDue && (uint32_t)(now - g_lastStatMs) + rxcfg::STAT_SLACK_MS >= rxcfg::STAT_PERIOD_MS) {
       g_statDue = true;
       g_statDueMs = now + rxcfg::STAT_DELAY_MS;
     }
@@ -109,6 +115,28 @@ void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr,
                     static_cast<unsigned long>(hb.seq), rx::sevName(hb.levels[0]), rx::sevName(hb.levels[1]),
                     rx::sevName(hb.levels[2]), rx::sevName(hb.levels[3]), rssi,
                     rx::sevName(g_state.overall()), wasLost ? " (signal back)" : "");
+    return;
+  }
+  rx::TextMsg tm;
+  if (rx::parseText(data, len, tm) == rx::ParseResult::Ok) {
+    if (strcmp(tm.device, rxcfg::NODE_ID) != 0 || (tm.dst[0] && strcmp(tm.dst, rxcfg::GATEWAY_ID) != 0)) {
+      ++g_bad;
+      return;
+    }
+    g_lastRssi = rssi;
+    g_lastSnr = snr;
+    g_nodeAddr = from;
+    ++g_texts;
+    if (g_state.overall() != rx::Sev::Normal) {
+      Serial.printf("[TEXT] #%lu ignored (alert active): %s\r\n", static_cast<unsigned long>(tm.id), tm.text);
+    } else {
+      g_msg.show(tm.text, now, rxcfg::LCD_TEXT_MS, rxcfg::LCD_TEXT_PAGES, rxcfg::LCD_TEXT_TIMES,
+                 rxcfg::LCD_TEXT_GAP_MS);
+      Serial.printf("[TEXT] #%lu (RSSI %d dBm) on the LCD %u times for %lu s, %u page(s)%s: %s\r\n",
+                    static_cast<unsigned long>(tm.id), rssi, rxcfg::LCD_TEXT_TIMES,
+                    static_cast<unsigned long>(rxcfg::LCD_TEXT_MS / 1000), g_msg.pages(), g_msg.cut() ? ", cut" : "",
+                    tm.text);
+    }
     return;
   }
   rx::Event e;
@@ -149,7 +177,9 @@ void handleFrame(const char* data, size_t len, uint16_t from, int rssi, int snr,
 void updateLeds(uint32_t now) {
   const rx::Led l = g_state.led(now, rxcfg::LINK_TIMEOUT_MS);
   const bool blink = (now / rxcfg::WAIT_BLINK_MS) % 2 == 0;
-  digitalWrite(rxcfg::LED_GREEN, (l == rx::Led::Green || (l == rx::Led::WaitingBlink && blink)) ? HIGH : LOW);
+  // A WhatsApp message on the LCD: green blinks fast for as long as it is shown.
+  const bool msg = g_state.overall() == rx::Sev::Normal && g_msg.active(now);
+  digitalWrite(rxcfg::LED_GREEN, rx::greenLed(l, msg, now, rxcfg::WAIT_BLINK_MS, rxcfg::MSG_BLINK_MS) ? HIGH : LOW);
   // Lost signal: yellow blinks (the last known state may be outdated).
   digitalWrite(rxcfg::LED_YELLOW, (l == rx::Led::Yellow || (l == rx::Led::LostBlink && blink)) ? HIGH : LOW);
   digitalWrite(rxcfg::LED_RED, l == rx::Led::Red ? HIGH : LOW);
@@ -212,10 +242,15 @@ void loop() {
   if ((uint32_t)(now - lastLcd) >= 200) {
     lastLcd = now;
     char l1[17], l2[17];
-    rx::formatLine1(g_state, now, rxcfg::LINK_TIMEOUT_MS, l1);
-    const bool linkPage = (now / rxcfg::LCD_PAGE_MS) % 2 == 1;
-    rx::formatLine2(g_state, linkPage, g_lastRssi, now, rxcfg::LINK_TIMEOUT_MS, l2);
-    if (!g_radio.ok() && g_state.anyReceived() == false) snprintf(l2, sizeof l2, "%-16s", "LoRa: FALHA");
+    if (g_state.overall() != rx::Sev::Normal) g_msg.cancel();  // an alert takes the LCD back at once
+    if (g_msg.active(now)) {
+      g_msg.lines(now, l1, l2);
+    } else {
+      rx::formatLine1(g_state, now, rxcfg::LINK_TIMEOUT_MS, l1);
+      const bool linkPage = (now / rxcfg::LCD_PAGE_MS) % 2 == 1;
+      rx::formatLine2(g_state, linkPage, g_lastRssi, now, rxcfg::LINK_TIMEOUT_MS, l2);
+      if (!g_radio.ok() && g_state.anyReceived() == false) snprintf(l2, sizeof l2, "%-16s", "LoRa: FALHA");
+    }
     g_lcd.show(l1, l2);
   }
 }

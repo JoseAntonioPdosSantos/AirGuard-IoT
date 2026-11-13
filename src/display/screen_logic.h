@@ -1,6 +1,7 @@
 // AirGuard IoT - display decision logic (pure, unit tested).
 //
-// Visual priority: HIGH > MEDIUM > LOW > remote message > main screen.
+// Visual priority: HIGH > MEDIUM > LOW > remote message > WhatsApp pairing
+// code > main screen.
 // A remote message is shown for exactly REMOTE_MSG_PAGE_MS per page; while an
 // alert is active the message screen keeps a blinking alert banner, and when
 // the alert is HIGH the alert screen is shown for at least one page-time
@@ -11,7 +12,7 @@
 #include "../config/config.h"
 #include "../monitoring/alert_types.h"
 
-enum class Screen : uint8_t { Boot, Main, Alert, Message };
+enum class Screen : uint8_t { Boot, Main, Alert, Message, Code };
 
 constexpr uint8_t MSG_COLS = 21;           // 128 px / 6 px per char
 constexpr uint8_t MSG_LINES_PER_PAGE = 6;  // blue band rows (yellow band: header + alert banner)
@@ -49,4 +50,6 @@ class RemoteMessageDisplay {
   bool     everEnded_ = false;
 };
 
-Screen selectScreen(bool booting, Severity overall, bool messageActive);
+// codeActive: AirGuard Web is waiting for the WhatsApp pairing code to be typed
+// on the phone (docs/12_whatsapp.md). It never hides an alert or a remote message.
+Screen selectScreen(bool booting, Severity overall, bool messageActive, bool codeActive = false);

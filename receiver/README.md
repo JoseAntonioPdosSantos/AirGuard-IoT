@@ -6,6 +6,7 @@ Segundo dispositivo do AirGuard IoT. Ele recebe pelo LoRa os alertas do sensor d
 | LED | Quando acende |
 |---|---|
 | **Verde** | tudo normal. **Pisca** enquanto nenhuma mensagem foi recebida desde que ligou |
+| **Verde piscando rápido** (4 Hz) | chegou uma **mensagem do WhatsApp**: pisca enquanto ela está no LCD (duas vezes, até 5 s cada) |
 | **Amarelo** | alerta LOW ou MEDIUM em alguma categoria |
 | **Vermelho** | alerta HIGH em alguma categoria |
 | **Amarelo piscando** | **sem sinal**: nenhuma mensagem do sensor há mais de 15 s |
@@ -36,6 +37,9 @@ sensor recebe o ACK e o `NO ACK` some.
 | **LED vermelho** | ânodo | 220 Ω–1 kΩ → **GP8** |
 
 Rosqueie a antena do RYLR998 antes de ligar.
+
+Folha para imprimir, com o diagrama e a lista de ligações (folha 3):
+[`../docs/pinagem/AirGuard-pinagem.pdf`](../docs/pinagem/AirGuard-pinagem.pdf).
 
 ### Alimentação do LCD: montagem usada na bancada
 
@@ -74,7 +78,17 @@ ultimo ha 25s
 HIGH: GAS            nível e categoria mais grave (GAS, TEMP, UMIDADE, SISTEMA)
 25.4C 61% 3.10V      temperatura, umidade, gás (tensão do AO do MQ-135)
 RSSI -45dBm #12      alterna a cada 3 s: sinal do último quadro e eventos recebidos
+
+Maria: Chego em      mensagem do WhatsApp repassada pelo sensor (quadro TEXT): fica
+10 min               por no máximo 5 s, a tela acima volta por 2 s e a mensagem
+                     aparece mais uma vez
 ```
+
+**Mensagem do WhatsApp.** O texto é quebrado em 16 colunas. Até 2 páginas de 2 linhas dividem os
+5 s (uma página fica os 5 s; duas ficam 2,5 s cada). A mensagem aparece **duas vezes**, com a tela
+normal por 2 s entre uma e outra. O que passa de 64 caracteres fica de fora e a
+última linha termina em `...`. Com o receptor em alerta o texto é ignorado, e um alerta que chega
+antes do fim toma o LCD de volta na hora e cancela a segunda exibição. Detalhes em [docs/12_whatsapp.md](../docs/12_whatsapp.md).
 
 O sensor manda um **heartbeat a cada 5 s** com o nível de cada categoria e as leituras atuais. Os
 valores do LCD são atualizados a cada 5 s, e o estado dos LEDs é ressincronizado mesmo que um
@@ -98,7 +112,7 @@ O receptor **não grava log de telemetria**: ele não tem rede. Ele informa o se
 e o ESP32 repassa ao AirGuard Web pelo Wi-Fi:
 
 - cada **ACK** leva o RSSI/SNR com que o receptor ouviu o alerta;
-- um quadro **STAT**, 250 ms depois de um heartbeat e no máximo a cada 15 s (a cada 30 s se nenhum
+- um quadro **STAT**, 250 ms depois de cada heartbeat, ou seja, a cada 5 s (a cada 30 s se nenhum
   heartbeat chegar), traz:
   - quais dos últimos 32 heartbeats ele ouviu;
   - os contadores (heartbeats, perdidos, eventos, repetidos, inválidos);
@@ -114,10 +128,14 @@ Formato: [docs/11_telemetry.md](../docs/11_telemetry.md). O log de texto na USB 
   O endereço do receptor é **1**, e o do sensor é 101.
 - `AIR_INDEX_IS_VOLTAGE = true`: o sensor no modo de tensão manda `air_index = 100 × V / 5`, e o
   LCD mostra `V = air_index / 20`. Com resolução de 0,05 V, porque o índice é inteiro.
+- `LCD_TEXT_MS = 5000` e `LCD_TEXT_PAGES = 2`: tempo máximo e páginas de uma mensagem do WhatsApp;
+  `LCD_TEXT_TIMES = 2` e `LCD_TEXT_GAP_MS = 2000`: quantas vezes ela aparece e o intervalo entre elas.
 
 ## Limitações
 
 - O heartbeat não tem ACK: o sensor não sabe se o receptor está ligado; só o receptor detecta a
   perda de sinal. Os alertas, com ACK, continuam indicando `NO ACK` no sensor.
 - Sem buzzer no receptor (não foi pedido).
+- A mensagem do WhatsApp (`TEXT`) não tem ACK: se o quadro se perder no rádio, o LCD simplesmente
+  não a mostra. Só os primeiros 64 caracteres aparecem.
 - Não testado em hardware ainda: só compilado e testado no PC.

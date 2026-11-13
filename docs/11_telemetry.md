@@ -1,13 +1,13 @@
 # 11. Telemetria para o AirGuard Web
 
 O **ESP32** é a única placa na rede. Ele registra tudo o que **envia e recebe pelo LoRa** e manda
-os registros ao AirGuard Web pelo **Wi-Fi**, sem notebook nem cabo USB. O **RP2040** (receptor) não
+os registros ao AirGuard Web pelo **Wi-Fi**, sem cabo USB. O **RP2040** (receptor) não
 grava log nenhum: ele informa o ESP32 pelo próprio rádio, e o ESP32 repassa ao servidor.
 
 ```
-RP2040 ──LoRa: ACK (+rssi/snr), STAT a cada 15 s──> ESP32 ──Wi-Fi + MQTT──> broker :1883 ──> AirGuard Web :8787 ──> página Ambiente
-       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────       publica em          (mosquitto     (assina airguard/+/    (tempo real, SSE)
-                                                         airguard/KITCHEN_01/ mosquitto)   telemetry, grava em
+RP2040 ──LoRa: ACK (+rssi/snr), STAT a cada 5 s──> ESP32 ──Wi-Fi + MQTT──> broker :1883 ──> AirGuard Web :8787 ──> página Ambiente
+       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────       publica em          (Mosquitto    (assina airguard/+/    (tempo real, SSE)
+                                                         airguard/KITCHEN_01/    etc.)     telemetry, grava em
                                                          telemetry a cada 2 s              data/telemetry/)
 ```
 
@@ -34,7 +34,7 @@ Configuração, salva na NVS (sobrevive a reboot e a regravação do firmware):
 ```
 net                                   estado (Wi-Fi, IP, MQTT, fila, enviados)
 net ssid <rede>     net pass <senha>  rede Wi-Fi (o valor é o resto da linha)
-net broker 192.168.1.10:1883           broker MQTT (porta padrão 1883)
+net broker <ip-do-broker>:1883        broker MQTT (porta padrão 1883)
 net user airguard   net mqttpass <s>  login MQTT
 tlm on|off                            ecoa os registros na USB como "@T {...}" (depuração; padrão off)
 ```
@@ -71,8 +71,9 @@ O ESP32 grava um registro a cada transmissão ou recepção pelo rádio, e tamb�
 - **STAT** (sem ACK):
   `{"type":"STAT","device":"GATEWAY_01","dst":"KITCHEN_01","seq":120,"map":4294967295,"hbs":118,"miss":2,"ev":3,"dup":0,"bad":0,"rssi":-31,"snr":9,"lcd":1,"lora":1,"lost":0,"up":610}`.
 - Quando o STAT é enviado:
-  - 250 ms depois de um heartbeat, no máximo a cada 15 s. O ESP32 acabou de transmitir e está
-    ouvindo, o que diminui colisões.
+  - 250 ms depois de cada heartbeat, ou seja, a cada 5 s (`STAT_PERIOD_MS`; era 15 s). O ESP32
+    acabou de transmitir e fica 2 s sem transmitir de novo (`TX_MIN_GAP_MS`), só ouvindo, o que
+    evita colisões.
   - Sem heartbeats, um STAT a cada 30 s com `lost:1`.
   - Os ACKs têm prioridade.
 - Firmwares antigos do ESP32 ignoram os campos novos do ACK, e um STAT vira `rxbad` (`UnknownType`).
