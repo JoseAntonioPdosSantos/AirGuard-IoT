@@ -1,7 +1,7 @@
 # 12. Ligação com o WhatsApp
 
 O AirGuard mostra no visor as mensagens que chegam no WhatsApp do usuário e avisa esse mesmo
-WhatsApp quando há um alerta. Quem fala com o WhatsApp é o **AirGuard Web** (no notebook); o
+WhatsApp quando há um alerta. Quem fala com o WhatsApp é o **AirGuard Web** (no servidor); o
 **ESP32 só troca mensagens MQTT** com ele e repassa o texto ao receptor pelo LoRa.
 
 ```
@@ -204,4 +204,4 @@ net                a linha "WhatsApp link" mostra o que chegou pelo MQTT
   controla a conta do WhatsApp conectada.
 - A biblioteca não é oficial: o WhatsApp pode mudar o protocolo ou restringir contas que a usam.
 - Sem TLS no MQTT (rede local), como na telemetria: o texto das mensagens trafega em claro na
-  rede Wi-Fi entre o notebook e o ESP32, e no LoRa entre o ESP32 e o receptor.
+  rede Wi-Fi entre o servidor e o ESP32, e no LoRa entre o ESP32 e o receptor.

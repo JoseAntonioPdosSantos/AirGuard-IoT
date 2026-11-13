@@ -5,6 +5,6 @@
 #pragma once
 #define NET_WIFI_SSID   "my-wifi"
 #define NET_WIFI_PASS   "my-password"
-#define NET_MQTT_BROKER "192.168.1.10:1883"  // host[:port] of the MQTT broker
+#define NET_MQTT_BROKER "192.168.1.10:1883" // host[:port] of the MQTT broker (example)
 #define NET_MQTT_USER   "airguard"
-#define NET_MQTT_PASS   ""                  // AIRGUARD_MQTT_PASSWORD of the broker
+#define NET_MQTT_PASS   ""                  // password of that login in the broker

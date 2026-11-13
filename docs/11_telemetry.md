@@ -1,13 +1,13 @@
 # 11. Telemetria para o AirGuard Web
 
 O **ESP32** é a única placa na rede. Ele registra tudo o que **envia e recebe pelo LoRa** e manda
-os registros ao AirGuard Web pelo **Wi-Fi**, sem notebook nem cabo USB. O **RP2040** (receptor) não
+os registros ao AirGuard Web pelo **Wi-Fi**, sem cabo USB. O **RP2040** (receptor) não
 grava log nenhum: ele informa o ESP32 pelo próprio rádio, e o ESP32 repassa ao servidor.
 
 ```
 RP2040 ──LoRa: ACK (+rssi/snr), STAT a cada 5 s──> ESP32 ──Wi-Fi + MQTT──> broker :1883 ──> AirGuard Web :8787 ──> página Ambiente
-       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────       publica em          (mosquitto     (assina airguard/+/    (tempo real, SSE)
-                                                         airguard/KITCHEN_01/ mosquitto)   telemetry, grava em
+       <──LoRa: HB a cada 5 s, ALERT/RECOVERY─────       publica em          (Mosquitto    (assina airguard/+/    (tempo real, SSE)
+                                                         airguard/KITCHEN_01/    etc.)     telemetry, grava em
                                                          telemetry a cada 2 s              data/telemetry/)
 ```
 
@@ -34,7 +34,7 @@ Configuração, salva na NVS (sobrevive a reboot e a regravação do firmware):
 ```
 net                                   estado (Wi-Fi, IP, MQTT, fila, enviados)
 net ssid <rede>     net pass <senha>  rede Wi-Fi (o valor é o resto da linha)
-net broker 192.168.1.10:1883           broker MQTT (porta padrão 1883)
+net broker <ip-do-broker>:1883        broker MQTT (porta padrão 1883)
 net user airguard   net mqttpass <s>  login MQTT
 tlm on|off                            ecoa os registros na USB como "@T {...}" (depuração; padrão off)
 ```

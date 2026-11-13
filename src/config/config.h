@@ -39,7 +39,7 @@ constexpr uint32_t STATUS_LOG_PERIOD_MS    = 10000;
 // "@T env" telemetry line on USB serial for the AirGuard Web dashboard
 // (docs/11_telemetry.md). 0 = no periodic snapshot (radio records still sent).
 // Telemetry for AirGuard Web (docs/11_telemetry.md): sent over Wi-Fi by net/uplink.
-constexpr const char* UPLINK_DEFAULT_BROKER = "192.168.1.10:1883";  // MQTT broker (laptop)
+constexpr const char* UPLINK_DEFAULT_BROKER = "";  // MQTT broker host[:port]; set in net_secrets.h or with "net broker"
 constexpr uint16_t UPLINK_MQTT_PORT       = 1883;   // when the broker has no ":port"
 constexpr uint16_t UPLINK_MQTT_KEEPALIVE_S = 30;
 constexpr uint16_t UPLINK_MQTT_TIMEOUT_S  = 4;
