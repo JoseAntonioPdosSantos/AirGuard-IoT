@@ -195,3 +195,7 @@ Onde mexer no dia a dia: **limites** em `src/config/thresholds.h`, **tempos e po
 | Relé | ⏳ teste de acionamento em HIGH pendente (ver [docs/01_hardware.md §4.4](docs/01_hardware.md)) |
 | Testes em hardware (23 cenários) | ⏳ pendentes |
 | Pendências de hardware | ver [docs/01_hardware.md §6](docs/01_hardware.md) |
+
+## Licença
+
+Distribuído sob a licença [MIT](LICENSE).
