@@ -18,6 +18,9 @@ constexpr uint32_t ACK_ID_TAG = 0xF0000000UL;  // ids of our ACK replies (never 
 constexpr uint32_t HB_ID_TAG  = 0xE0000000UL;  // ids of heartbeats (never events)
 constexpr uint8_t  PRIO_HEARTBEAT = 1;           // lowest: after every event
 constexpr int8_t   HB_SUPERSEDE_KEY = 8;         // only the newest heartbeat waits
+constexpr uint32_t TEXT_ID_TAG = 0xD0000000UL;   // ids of WhatsApp texts relayed to the receiver
+constexpr uint8_t  PRIO_TEXT = 1;                // like a heartbeat: every event goes first
+constexpr int8_t   TEXT_SUPERSEDE_KEY = 9;       // only the newest text waits for the radio
 
 uint8_t priorityFor(const AlertEvent& e) {
   if (e.kind == EventKind::Recovery) return 2;
@@ -32,6 +35,7 @@ uint8_t priorityFor(const AlertEvent& e) {
 const char* frameKind(uint32_t id) {
   if ((id & 0xF0000000UL) == ACK_ID_TAG) return "ack";
   if ((id & 0xF0000000UL) == HB_ID_TAG) return "hb";
+  if ((id & 0xF0000000UL) == TEXT_ID_TAG) return "text";
   return "event";
 }
 
@@ -68,6 +72,7 @@ void AirGuardApp::setup() {
   // 2) Persistent state -> unique event ids across reboots.
   store::begin();
   const uint16_t boot = store::incrementBoot();
+  bootCount_ = boot;
   alerts_.setBootCount(boot);
   const PersistedState& st = store::state();
   LOGI("BOOT", "boot #%u, HIGH mask 0x%02X", boot, st.highMask);
@@ -111,6 +116,15 @@ void AirGuardApp::setup() {
   l.w().flt("gas_med", thr::GAS_VOLTS.above.medium, 2);
   l.w().flt("gas_high", thr::GAS_VOLTS.above.high, 2);
   telemetry::write(t, l.finish());
+
+  // "The node was just switched on": AirGuard Web answers with the WhatsApp
+  // pairing code when no account is linked (docs/12_whatsapp.md).
+  char h[96];
+  proto::JsonWriter w(h, sizeof h);
+  w.str("k", "hello");
+  w.unum("boot", boot);
+  w.str("fw", AIRGUARD_FW_VERSION);
+  uplink::event(h, w.finish());
 }
 
 // ===========================================================================
@@ -124,6 +138,7 @@ void AirGuardApp::loop() {
   taskAlerts(now);
   taskRadio(now);
   taskOutputs(now);
+  taskWhatsApp(now);
   taskDisplay(now);
   taskStatusLog(now);
 }
@@ -507,8 +522,149 @@ void AirGuardApp::taskOutputs(uint32_t now) {
   buzzer_.loop(now);
 
   // Green LED follows the relay in hardware (NC contact); red/yellow here.
+  // The message LED belongs to WhatsApp: an alert switches it off at once.
+  if (overall != Severity::Normal) led_.cancelMessage();
   led_.setState(overall, air_.warmingUp(now) && !air_.usable(now));
   led_.loop(now);
+}
+
+// ---------------------------------------------------------------------------
+// WhatsApp link. AirGuard Web owns the WhatsApp session and talks to this node
+// over MQTT only (net/uplink):
+//   in : session state (+ pairing code for the OLED) and the messages received;
+//   out: our alert levels and relay state, which AirGuard Web turns into
+//        WhatsApp messages to the user (alert, severity, back to normal, relay).
+void AirGuardApp::taskWhatsApp(uint32_t now) {
+  const bool alert = alerts_.overall() != Severity::Normal;
+
+  // 1) Session state: show the pairing code while it is valid. A pairing by
+  //    QR code happens on the web page only: the band just says so, once.
+  const wa::LinkState prev = waLink_.state;
+  if (uplink::takeWaLink(waLink_)) {
+    const wa::LinkState s = waLink_.state;
+    waCodeValid_ = s == wa::LinkState::Code;
+    if (s == wa::LinkState::Code) {
+      const uint32_t ttl = waLink_.ttlS ? waLink_.ttlS : cfg::WA_CODE_DEFAULT_TTL_S;
+      waCodeUntilMs_ = now + ttl * 1000UL;
+      LOGI("WA", "pairing: code on the OLED (type it on the phone)");  // the code itself is not logged
+      waPairing_ = true;
+    } else if (s == wa::LinkState::Qr) {
+      if (!waPairing_) {
+        LOGI("WA", "pairing: QR code on the web page");
+        if (!alert) waTicker_.push("AirGuard", "WhatsApp: QR code na pagina web", now);
+      }
+      waPairing_ = true;
+    }
+    if (s != prev) {
+      LOGI("WA", "WhatsApp session: %s%s%s", wa::linkStateName(s), waLink_.me[0] ? " " : "", waLink_.me);
+      if (s == wa::LinkState::Open && waPairing_) {
+        waPairing_ = false;
+        if (!alert) waTicker_.push("AirGuard", "WhatsApp conectado", now);
+      } else if (s == wa::LinkState::Idle || s == wa::LinkState::Offline) {
+        waPairing_ = false;
+      }
+    }
+  }
+  if (waCodeValid_ && (int32_t)(now - waCodeUntilMs_) >= 0) {
+    waCodeValid_ = false;
+    LOGI("WA", "pairing code expired");
+  }
+
+  // 2) Messages received on WhatsApp.
+  static wa::Inbox in;  // ~450 B: kept off the loop task's stack
+  while (uplink::takeWaMessage(in)) onWhatsAppMessage(in.from, in.text, in.id, now);
+  waTicker_.update(now, alert);
+
+  // 3) Our state for AirGuard Web.
+  publishNodeState(now);
+}
+
+// One WhatsApp message: yellow band of the OLED, the message LED blinking for
+// a few seconds, and the receiver's LCD (LoRa).
+// While ANY alert is active it is ignored: the alert owns display and radio.
+void AirGuardApp::onWhatsAppMessage(const char* sender, const char* text, uint32_t id, uint32_t now) {
+  const char* res;
+  if (alerts_.overall() != Severity::Normal) {
+    res = "ignored";
+    ++waIgnored_;
+    LOGI("WA", "message #%lu from '%s' ignored: alert active", static_cast<unsigned long>(id), sender);
+  } else {
+    switch (waTicker_.push(sender, text, now)) {
+      case WaTicker::Push::Shown: res = "shown"; break;
+      case WaTicker::Push::Queued: res = "queued"; break;
+      case WaTicker::Push::Full: res = "full"; break;
+      default: res = "empty"; break;
+    }
+    if (!strcmp(res, "shown") || !strcmp(res, "queued")) {
+      ++waShown_;
+      LOGI("WA", "message #%lu %s: \"%s\"", static_cast<unsigned long>(id), res, waTicker_.last());
+      led_.notifyMessage(now, cfg::WA_LED_BLINK_MS, cfg::WA_LED_HALF_MS);
+      relayTextToReceiver(waTicker_.last(), now);
+    } else {
+      LOGW("WA", "message #%lu from '%s' not displayed (%s)", static_cast<unsigned long>(id), sender,
+           !strcmp(res, "full") ? "queue full" : "nothing printable");
+    }
+  }
+  char e[96];
+  proto::JsonWriter w(e, sizeof e);
+  w.str("k", "wa");
+  w.unum("id", id);
+  w.str("res", res);
+  uplink::event(e, w.finish());
+}
+
+// The same text for the receiver's LCD. No ACK and only the newest one waits:
+// the LCD shows it for a few seconds, a late copy would be useless.
+void AirGuardApp::relayTextToReceiver(const char* ascii, uint32_t now) {
+  if (lora_.state() != LoraManager::State::Rx && lora_.state() != LoraManager::State::Tx) return;
+  char buf[cfg::LORA_MAX_PAYLOAD + 1];
+  size_t used = 0;
+  const uint32_t seq = ++waTextSeq_;
+  const size_t n = proto::encodeText(cfg::DEVICE_ID, cfg::GATEWAY_ID, seq, ascii, buf, sizeof buf, &used);
+  if (n == 0) return;
+  if (used < strlen(ascii))
+    LOGI("WA", "LoRa limit: %u of %u characters sent to the receiver", static_cast<unsigned>(used),
+         static_cast<unsigned>(strlen(ascii)));
+  const uint32_t qid = TEXT_ID_TAG | (seq & 0x0FFFFFFFUL);
+  if (!ack_.enqueue(qid, PRIO_TEXT, TEXT_SUPERSEDE_KEY, false, reinterpret_cast<const uint8_t*>(buf), n, now))
+    LOGD("WA", "text #%lu not queued for the receiver (radio queue busy)", static_cast<unsigned long>(seq));
+}
+
+// Retained on MQTT; AirGuard Web compares it with the previous one. Sent when
+// a level, the relay or the system flags change, and every WA_STATE_PERIOD_MS.
+void AirGuardApp::publishNodeState(uint32_t now) {
+  const AlertManager& al = alerts_;
+  wa::NodeState s;
+  s.boot = bootCount_;
+  s.uptimeS = now / 1000;
+  for (uint8_t i = 0; i < CATEGORY_COUNT; ++i) s.levels[i] = al.category(static_cast<Category>(i));
+  s.overall = al.overall();
+  s.worst = al.worstCategory();
+  s.relayOn = relay_.energised();
+  s.systemFlags = al.systemFlags();
+  const uint32_t sig = wa::nodeStateSignature(s);
+  if (sig == stateSig_ && (uint32_t)(now - lastStateMs_) < cfg::WA_STATE_PERIOD_MS) return;
+  stateSig_ = sig;
+  lastStateMs_ = now;
+  s.envValid = env_.valid();
+  s.temperature = env_.temperature();
+  s.humidity = env_.humidity();
+  s.airValid = air_.usable(now);
+  s.gasVolts = air_.last().vAlarm;
+  s.simulated = air_.simulating() || env_.simulating();
+  char b[320];
+  const size_t n = wa::encodeNodeState(s, b, sizeof b);
+  if (n) uplink::setState(b, n);
+}
+
+void AirGuardApp::printWhatsApp(uint32_t now) {
+  LOGI("WA", "session %s%s%s | pairing code %s | yellow band: %s, %u waiting | shown %lu, ignored (alert) %lu, "
+       "relayed to the receiver %lu",
+       wa::linkStateName(waLink_.state), waLink_.me[0] ? " " : "", waLink_.me,
+       waCodeValid_ ? "on screen" : "-", waTicker_.active() ? waTicker_.text() : "(idle)", waTicker_.waiting(),
+       static_cast<unsigned long>(waShown_), static_cast<unsigned long>(waIgnored_),
+       static_cast<unsigned long>(waTextSeq_));
+  (void)now;
 }
 
 void AirGuardApp::taskDisplay(uint32_t now) {
@@ -523,7 +679,13 @@ void AirGuardApp::taskDisplay(uint32_t now) {
   d.nowMs = now;
   const bool booting = (uint32_t)(now - bootMs_) < cfg::BOOT_SCREEN_MS;
   d.overall = al.overall();
-  d.screen = selectScreen(booting, d.overall, msgs_.active());
+  const bool code = waCodeValid_ && waLink_.state == wa::LinkState::Code;
+  d.screen = selectScreen(booting, d.overall, msgs_.active(), code);
+  if (waTicker_.active()) {
+    d.waText = waTicker_.text();
+    d.waX = waTicker_.x(now);
+  }
+  d.waCode = code ? waLink_.code : nullptr;
   d.envValid = env_.valid();
   d.temperature = env_.temperature();
   d.humidity = env_.humidity();

@@ -86,3 +86,28 @@ TEST(interop_node_heartbeat_is_understood_by_receiver) {
   CHECK(h.hasAir && h.airIndex == 62);
   CHECK_EQ(h.seq, 7u);
 }
+
+TEST(interop_node_text_is_understood_by_receiver) {
+  char buf[260];
+  const char* msg = "Davi: \"Almoco\" as 12h \\ ok?";
+  const size_t n = proto::encodeText("KITCHEN_01", "GATEWAY_01", 42, msg, buf, sizeof buf);
+  CHECK(n > 0);
+  rx::TextMsg t;
+  CHECK(rx::parseText(buf, n, t) == rx::ParseResult::Ok);
+  CHECK_EQ(t.id, 42u);
+  CHECK_STR(t.device, "KITCHEN_01");
+  CHECK_STR(t.dst, "GATEWAY_01");
+  CHECK_STR(t.text, msg);
+  // the longest frame the node can send still parses, and nothing overflows
+  char longTxt[400];
+  memset(longTxt, 'z', sizeof longTxt - 1);
+  longTxt[sizeof longTxt - 1] = '\0';
+  size_t used = 0;
+  const size_t m = proto::encodeText("KITCHEN_01", "GATEWAY_01", 4294967295u, longTxt, buf, sizeof buf, &used);
+  CHECK_EQ(m, cfg::LORA_MAX_PAYLOAD);
+  CHECK(rx::parseText(buf, m, t) == rx::ParseResult::Ok);
+  CHECK_EQ(strlen(t.text), used);
+  // and the node itself does not take its own relayed text for a command
+  rx::Event e;
+  CHECK(rx::parseEvent(buf, m, e) == rx::ParseResult::NotEvent);
+}

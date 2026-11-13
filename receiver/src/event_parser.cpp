@@ -54,6 +54,48 @@ bool getString(const char* s, size_t len, const char* key, char* out, size_t cap
   return false;
 }
 
+// Like getString, but decodes the JSON escapes a free text may carry.
+// Characters beyond `cap` are dropped (the LCD shows only the beginning).
+bool getText(const char* s, size_t len, const char* key, char* out, size_t cap) {
+  const char* v = findValue(s, len, key);
+  if (!v || *v != '"') return false;
+  const char* end = s + len;
+  size_t n = 0;
+  for (const char* p = v + 1; p < end; ++p) {
+    unsigned char c = static_cast<unsigned char>(*p);
+    if (c == '"') { out[n] = '\0'; return true; }
+    if (c < 0x20) return false;
+    if (c == '\\') {
+      if (++p >= end) return false;
+      switch (*p) {
+        case '"': c = '"'; break;
+        case '\\': c = '\\'; break;
+        case '/': c = '/'; break;
+        case 'b': case 'f': case 'n': case 'r': case 't': c = ' '; break;
+        case 'u': {
+          if (end - p < 5) return false;
+          unsigned v16 = 0;
+          for (int i = 1; i <= 4; ++i) {
+            const char h = p[i];
+            unsigned d;
+            if (h >= '0' && h <= '9') d = static_cast<unsigned>(h - '0');
+            else if (h >= 'a' && h <= 'f') d = static_cast<unsigned>(h - 'a' + 10);
+            else if (h >= 'A' && h <= 'F') d = static_cast<unsigned>(h - 'A' + 10);
+            else return false;
+            v16 = (v16 << 4) | d;
+          }
+          p += 4;
+          c = v16 < 0x20 ? ' ' : (v16 < 0x7F ? static_cast<unsigned char>(v16) : '?');
+          break;
+        }
+        default: return false;
+      }
+    }
+    if (n + 1 < cap) out[n++] = static_cast<char>(c);
+  }
+  return false;
+}
+
 bool getNumber(const char* s, size_t len, const char* key, double& out) {
   const char* v = findValue(s, len, key);
   if (!v) return false;
@@ -152,6 +194,28 @@ ParseResult parseHeartbeat(const char* d, size_t len, Heartbeat& h) {
   if (getNumber(d, len, "air_index", v) && v >= 0 && v <= 100) { h.hasAir = true; h.airIndex = static_cast<uint32_t>(v); }
   if (getNumber(d, len, "temperature", v) && v > -60 && v < 100) { h.hasTemp = true; h.temperature = static_cast<float>(v); }
   if (getNumber(d, len, "humidity", v) && v >= 0 && v <= 100) { h.hasHum = true; h.humidity = static_cast<float>(v); }
+  return ParseResult::Ok;
+}
+
+ParseResult parseText(const char* d, size_t len, TextMsg& t) {
+  t = TextMsg{};
+  while (len > 0 && (d[len - 1] == ' ' || d[len - 1] == '\r' || d[len - 1] == '\n')) --len;
+  if (len < 2 || d[0] != '{' || d[len - 1] != '}') return ParseResult::NotJson;
+  char type[16];
+  if (!getString(d, len, "type", type, sizeof type)) return ParseResult::MissingField;
+  if (strcmp(type, "TEXT") != 0) return ParseResult::NotEvent;
+  double id = 0;
+  if (!getString(d, len, "device", t.device, sizeof t.device) || !getNumber(d, len, "message_id", id) ||
+      !getText(d, len, "text", t.text, sizeof t.text)) {
+    t = TextMsg{};
+    return ParseResult::MissingField;
+  }
+  getString(d, len, "dst", t.dst, sizeof t.dst);  // optional
+  if (id < 0 || id > 4294967295.0 || t.text[0] == '\0') {
+    t = TextMsg{};
+    return ParseResult::BadValue;
+  }
+  t.id = static_cast<uint32_t>(id);
   return ParseResult::Ok;
 }
 

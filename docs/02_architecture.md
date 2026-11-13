@@ -46,12 +46,17 @@ src/
 │   └── lora_manager              [HW] driver não bloqueante do RYLR998 (UART, comandos AT)
 ├── display/
 │   ├── screen_logic              [PURO] prioridade visual, mensagens remotas (3 s/página)
-│   └── oled_manager              [HW] desenho SSD1306 (envia só quando o quadro muda)
+│   ├── wa_ticker                 [PURO] mensagem do WhatsApp rolando na faixa amarela (doc 12)
+│   └── oled_manager              [HW] desenho SSD1306 (envia só quando o quadro muda), código de conexão
+├── net/
+│   ├── uplink                    [HW] Wi-Fi + MQTT em task própria: telemetria e ligação com o WhatsApp
+│   ├── uplink_queue              [PURO] fila de registros que esperam o broker
+│   └── wa_codec                  [PURO] mensagens MQTT do WhatsApp (estado/código de conexão, texto, estado do nó)
 ├── actuators/
 │   ├── buzzer_pattern            [PURO] padrão sonoro em função do tempo
 │   ├── buzzer_manager            [HW] máquina de estados do buzzer
 │   ├── relay_manager             [HW] relé com estado seguro e polaridade configurável
-│   └── led_manager               [HW] LEDs vermelho e amarelo (o verde é ligado pelo contato NC do relé)
+│   └── led_manager               [HW] LEDs vermelho, amarelo e azul de mensagem (o verde é ligado pelo contato NC do relé)
 └── utils/
     ├── logger                    [HW] log serial com nível, sem bloqueio
     ├── persistent_store          [HW] flash (EEPROM emulada): boot count, máscara HIGH

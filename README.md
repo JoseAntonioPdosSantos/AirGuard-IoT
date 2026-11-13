@@ -13,7 +13,7 @@ continuamente, **sem Wi-Fi nem internet**:
 - **recebimento de texto** de um segundo dispositivo (ex.: gateway WhatsApp), exibido no OLED
   por **3 s**, com ACK ao remetente;
 - **OLED SSD1306** amarelo/azul com prioridade visual, **buzzer** por padrões, **relé** em HIGH,
-  **LED verde** pelo contato NC do relé e LEDs **amarelo/vermelho** de severidade;
+  **LED verde** pelo contato NC do relé, LEDs **amarelo/vermelho** de severidade e LED **azul** de mensagem do WhatsApp;
 - watchdog, persistência em flash, log serial e **console de simulação** para testar todos os
   níveis sem gases reais.
 
@@ -52,7 +52,8 @@ AirGuard-IoT/
 │   ├── sensors/        MQ-135 (ADC), DHT11
 │   ├── monitoring/     cadeia do MQ-135, ambiente, severidade, alertas
 │   ├── communication/  protocolo JSON, fila de ACK, driver RYLR998 (AT)
-│   ├── display/        lógica de telas, driver OLED
+│   ├── display/        lógica de telas, driver OLED, mensagem do WhatsApp na faixa amarela
+│   ├── net/            Wi-Fi + MQTT: telemetria e ligação com o WhatsApp (AirGuard Web)
 │   ├── actuators/      buzzer, relé, LED
 │   └── utils/          log, flash, texto
 ├── receiver/           AirGuard Receiver (projeto PlatformIO próprio, RP2040-Zero)
@@ -79,12 +80,13 @@ Onde mexer no dia a dia: **limites** em `src/config/thresholds.h`, **tempos e po
 | 09 | [Compilação e gravação](docs/09_build_flash.md) | **compilação**, **gravação**, validação física |
 | 10 | [Referências](docs/10_references.md) | **referências técnicas e científicas** |
 | 11 | [Telemetria](docs/11_telemetry.md) | ESP32 envia pelo Wi-Fi o que transmite e recebe no LoRa (e o STAT do receptor) para o **painel Ambiente** do AirGuard Web |
+| 12 | [WhatsApp](docs/12_whatsapp.md) | **código de conexão no OLED**, mensagens recebidas na faixa amarela e no LCD (LoRa), **avisos de alerta e do relé pelo WhatsApp**, tópicos MQTT |
 
 ## Estado atual
 
 | Item | Situação |
 |---|---|
-| Lógica central (classificação, alertas, protocolo, ACK, rádio AT, telas, texto) | ✅ 84 testes unitários do nó + 12 do receptor passando |
+| Lógica central (classificação, alertas, protocolo, ACK, rádio AT, telas, texto, WhatsApp) | ✅ 110 testes unitários do nó + 22 do receptor passando |
 | Nó ESP32 na bancada | ✅ OLED, DHT11, MQ-135 (alarme por tensão), LEDs, buzzer ativo e RYLR998 funcionando |
 | Receptor RP2040-Zero | ✅ recebe alertas e heartbeats, envia ACK, LCD funcionando; LEDs ainda não ligados |
 | Relé | ⏳ ainda não ligado/testado |

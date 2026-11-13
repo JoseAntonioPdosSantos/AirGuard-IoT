@@ -50,6 +50,22 @@ uint8_t           g_store[cfg::UPLINK_QUEUE_BYTES];
 UplinkQueue       g_queue(g_store, sizeof g_store);
 volatile bool     g_reconnect = false;
 
+// ---- WhatsApp link (all under g_lock) -------------------------------------------
+constexpr const char* TOPIC_WA_LINK = "airguard/whatsapp/link";
+constexpr const char* TOPIC_WA_INBOX = "airguard/whatsapp/inbox";
+constexpr uint8_t     WA_INBOX_SLOTS = 4;
+
+uint8_t     g_evStore[cfg::UPLINK_EVENT_BYTES];
+UplinkQueue g_events(g_evStore, sizeof g_evStore);  // events for AirGuard Web
+char        g_state[320];                           // node state (JSON), latest wins
+size_t      g_stateLen = 0;
+uint32_t    g_stateVer = 0;                         // bumped by setState()
+wa::Link    g_link;                                 // latest link state received
+uint32_t    g_linkVer = 0, g_linkTaken = 0;
+wa::Inbox   g_inbox[WA_INBOX_SLOTS];                // messages received, oldest first
+uint8_t     g_inboxHead = 0, g_inboxCount = 0;
+volatile uint32_t g_waRx = 0, g_waBad = 0, g_waDropped = 0, g_evSent = 0, g_statePubs = 0;
+
 // status (written by the uplink task, read by the console)
 volatile uint32_t g_sent = 0, g_pubs = 0, g_errors = 0, g_lastOkMs = 0;
 volatile int      g_mqttState = MQTT_DISCONNECTED;  // PubSubClient::state()
@@ -138,6 +154,35 @@ void onWifiEvent(arduino_event_id_t event, arduino_event_info_t info) {
 char g_body[cfg::UPLINK_BATCH_BYTES];
 char g_topic[64];
 char g_host[64];  // PubSubClient keeps a pointer to it
+char g_stateTopic[64], g_eventTopic[64];
+char g_out[cfg::UPLINK_EVENT_BYTES / 4 > sizeof g_state ? cfg::UPLINK_EVENT_BYTES / 4 : sizeof g_state];
+
+// MQTT message received (runs in the uplink task, inside mqtt.loop()). Only
+// parses and stores: the application picks the result up from its own loop.
+wa::Link  g_linkTmp;
+wa::Inbox g_inboxTmp;
+void onMqttMessage(char* topic, uint8_t* payload, unsigned int len) {
+  const char* json = reinterpret_cast<const char*>(payload);
+  if (!strcmp(topic, TOPIC_WA_LINK)) {
+    if (!wa::parseLink(json, len, g_linkTmp)) { ++g_waBad; return; }
+    xSemaphoreTake(g_lock, portMAX_DELAY);
+    g_link = g_linkTmp;
+    ++g_linkVer;
+    xSemaphoreGive(g_lock);
+  } else if (!strcmp(topic, TOPIC_WA_INBOX)) {
+    if (!wa::parseInbox(json, len, g_inboxTmp)) { ++g_waBad; return; }
+    ++g_waRx;
+    xSemaphoreTake(g_lock, portMAX_DELAY);
+    if (g_inboxCount == WA_INBOX_SLOTS) {  // the application is not reading: drop the oldest
+      g_inboxHead = (g_inboxHead + 1) % WA_INBOX_SLOTS;
+      --g_inboxCount;
+      ++g_waDropped;
+    }
+    g_inbox[(g_inboxHead + g_inboxCount) % WA_INBOX_SLOTS] = g_inboxTmp;
+    ++g_inboxCount;
+    xSemaphoreGive(g_lock);
+  }
+}
 
 void task(void*) {
   WiFi.onEvent(onWifiEvent);
@@ -145,6 +190,8 @@ void task(void*) {
   WiFi.setAutoReconnect(true);
   WiFi.setHostname("airguard-node");
   snprintf(g_topic, sizeof g_topic, "airguard/%s/telemetry", cfg::DEVICE_ID);
+  snprintf(g_stateTopic, sizeof g_stateTopic, "airguard/%s/state", cfg::DEVICE_ID);
+  snprintf(g_eventTopic, sizeof g_eventTopic, "airguard/%s/event", cfg::DEVICE_ID);
   char clientId[40];
   snprintf(clientId, sizeof clientId, "airguard-%s", cfg::DEVICE_ID);
 
@@ -159,6 +206,11 @@ void task(void*) {
   PubSubClient mqtt(net);
   mqtt.setKeepAlive(cfg::UPLINK_MQTT_KEEPALIVE_S);
   mqtt.setSocketTimeout(cfg::UPLINK_MQTT_TIMEOUT_S);
+  // Received packets must fit PubSubClient's buffer (a WhatsApp message is up
+  // to ~500 B, more when escaped); telemetry is streamed and does not use it.
+  if (!mqtt.setBufferSize(cfg::UPLINK_MQTT_RX_BUFFER)) LOGE("NET", "MQTT buffer allocation failed");
+  mqtt.setCallback(onMqttMessage);
+  uint32_t stateSent = 0;  // g_stateVer already published on this connection (0 = none)
 
   for (;;) {
     vTaskDelay(pdMS_TO_TICKS(200));
@@ -197,9 +249,44 @@ void task(void*) {
         LOGI("NET", "MQTT %s:%u: %s", g_host, port, ok ? "connected" : mqttStateText(st));
       g_mqttState = st;
       if (!ok) { ++g_errors; continue; }
+      // WhatsApp link: the retained session state arrives right after this.
+      if (!mqtt.subscribe(TOPIC_WA_LINK) || !mqtt.subscribe(TOPIC_WA_INBOX))
+        LOGW("NET", "MQTT subscribe failed");
+      stateSent = 0;  // publish our state again on every new connection
     }
-    mqtt.loop();  // keep-alive (PINGREQ / PINGRESP)
+    mqtt.loop();  // keep-alive (PINGREQ / PINGRESP) + received messages
     g_mqttState = mqtt.state();
+    if (!mqtt.connected()) continue;
+
+    // Node state (retained, latest wins) and events for AirGuard Web.
+    {
+      size_t n = 0;
+      uint32_t ver = 0;
+      xSemaphoreTake(g_lock, portMAX_DELAY);
+      if (g_stateLen && g_stateVer != stateSent) {
+        n = g_stateLen;
+        ver = g_stateVer;
+        memcpy(g_out, g_state, n);
+      }
+      xSemaphoreGive(g_lock);
+      if (n) {
+        if (mqtt.publish(g_stateTopic, reinterpret_cast<const uint8_t*>(g_out), n, true)) { stateSent = ver; ++g_statePubs; }
+        else { ++g_errors; mqtt.disconnect(); continue; }
+      }
+      uint32_t seq = 0;
+      size_t count = 0;
+      xSemaphoreTake(g_lock, portMAX_DELAY);
+      n = g_events.peekBatch(g_out, sizeof g_out, 1, seq, count);
+      xSemaphoreGive(g_lock);
+      if (count) {
+        if (mqtt.publish(g_eventTopic, reinterpret_cast<const uint8_t*>(g_out), n, false)) {
+          xSemaphoreTake(g_lock, portMAX_DELAY);
+          g_events.confirm(seq);
+          xSemaphoreGive(g_lock);
+          ++g_evSent;
+        } else { ++g_errors; mqtt.disconnect(); continue; }
+      }
+    }
 
     if ((uint32_t)(millis() - lastTry) < cfg::UPLINK_PERIOD_MS) continue;
     lastTry = millis();
@@ -257,6 +344,44 @@ void push(const char* json, size_t len) {
 
 bool connected() { return g_mqttState == MQTT_CONNECTED; }
 
+void setState(const char* json, size_t len) {
+  if (!g_lock || !json || len == 0 || len > sizeof g_state) return;
+  if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(20)) != pdTRUE) return;  // next call retries
+  memcpy(g_state, json, len);
+  g_stateLen = len;
+  if (++g_stateVer == 0) g_stateVer = 1;
+  xSemaphoreGive(g_lock);
+}
+
+void event(const char* json, size_t len) {
+  if (!g_lock) return;
+  if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(20)) != pdTRUE) return;
+  g_events.push(json, len);
+  xSemaphoreGive(g_lock);
+}
+
+bool takeWaLink(wa::Link& out) {
+  if (!g_lock || g_linkVer == g_linkTaken) return false;  // unlocked peek: a miss is caught next loop
+  if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(5)) != pdTRUE) return false;
+  out = g_link;
+  g_linkTaken = g_linkVer;
+  xSemaphoreGive(g_lock);
+  return true;
+}
+
+bool takeWaMessage(wa::Inbox& out) {
+  if (!g_lock || g_inboxCount == 0) return false;
+  if (xSemaphoreTake(g_lock, pdMS_TO_TICKS(5)) != pdTRUE) return false;
+  const bool any = g_inboxCount > 0;
+  if (any) {
+    out = g_inbox[g_inboxHead];
+    g_inboxHead = (g_inboxHead + 1) % WA_INBOX_SLOTS;
+    --g_inboxCount;
+  }
+  xSemaphoreGive(g_lock);
+  return any;
+}
+
 bool set(Setting s, const char* v) {
   if (!g_lock) return false;
   const uint8_t i = static_cast<uint8_t>(s);
@@ -278,11 +403,15 @@ void printStatus() {
   Config c;
   size_t queued, bytes;
   uint32_t dropped;
+  wa::LinkState link;
+  char me[sizeof g_link.me];
   xSemaphoreTake(g_lock, portMAX_DELAY);
   c = g_cfg;
   queued = g_queue.count();
   bytes = g_queue.bytes();
   dropped = g_queue.dropped();
+  link = g_link.state;
+  memcpy(me, g_link.me, sizeof me);
   xSemaphoreGive(g_lock);
   const bool up = WiFi.status() == WL_CONNECTED;
   if (up)
@@ -293,6 +422,10 @@ void printStatus() {
   LOGI("NET", "MQTT %s | user %s | password %s | %s | topic airguard/%s/telemetry",
        c.broker[0] ? c.broker : "(not set)", c.user[0] ? c.user : "(none)", c.mpass[0] ? "set" : "empty",
        mqttStateText(g_mqttState), cfg::DEVICE_ID);
+  LOGI("NET", "WhatsApp link: %s%s%s | messages received %lu (bad %lu, dropped %lu) | state published %lu, events %lu",
+       wa::linkStateName(link), me[0] ? " " : "", me, static_cast<unsigned long>(g_waRx),
+       static_cast<unsigned long>(g_waBad), static_cast<unsigned long>(g_waDropped),
+       static_cast<unsigned long>(g_statePubs), static_cast<unsigned long>(g_evSent));
   LOGI("NET", "queue %u records (%u B, dropped %lu) | sent %lu in %lu publishes, errors %lu, last OK %lu s ago",
        static_cast<unsigned>(queued), static_cast<unsigned>(bytes), static_cast<unsigned long>(dropped),
        static_cast<unsigned long>(g_sent), static_cast<unsigned long>(g_pubs), static_cast<unsigned long>(g_errors),

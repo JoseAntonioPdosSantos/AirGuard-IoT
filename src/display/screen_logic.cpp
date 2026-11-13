@@ -58,9 +58,10 @@ const char* RemoteMessageDisplay::line(uint8_t i) const {
   return lines_[idx];
 }
 
-Screen selectScreen(bool booting, Severity overall, bool messageActive) {
+Screen selectScreen(bool booting, Severity overall, bool messageActive, bool codeActive) {
   if (booting) return Screen::Boot;
   if (messageActive) return Screen::Message;  // drawn WITH alert banner if any
   if (overall != Severity::Normal) return Screen::Alert;
+  if (codeActive) return Screen::Code;
   return Screen::Main;
 }

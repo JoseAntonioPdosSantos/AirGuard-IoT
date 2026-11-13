@@ -141,6 +141,7 @@ void OledManager::render(const DisplayModel& m) {
     case Screen::Main: drawMain(m); break;
     case Screen::Alert: drawAlert(m); break;
     case Screen::Message: drawMessage(m); break;
+    case Screen::Code: drawCode(m); break;
   }
   flush();
   // Inversion is a controller command (not in the frame buffer): send on change only.
@@ -178,6 +179,12 @@ void OledManager::drawFooter(const DisplayModel& m) {
 // operation, the alert level (as before) while an alert is active.
 void OledManager::drawHeader(const DisplayModel& m) {
   if (m.overall == Severity::Normal) {
+    // A WhatsApp message takes the band while it scrolls (2x font = 16 px);
+    // the position comes from display/wa_ticker (slower than the ticker below).
+    if (m.waText && m.waText[0]) {
+      textAt(m.waX, 0, m.waText, 2);
+      return;
+    }
     textAt(5, 0, "AirGuard", 2);                        // 8 x 12 px = 96 px
     textAt(105, 8, m.simulation ? "SIM" : "IoT");       // bottom-aligned, small
     return;
@@ -251,6 +258,19 @@ void OledManager::drawAlert(const DisplayModel& m) {
   textAt(0, 56, b);
 
   wantInvert_ = (m.overall == Severity::High && !phase);
+}
+
+// WhatsApp pairing: the 8-character code to type on the phone (WhatsApp >
+// Dispositivos conectados > Conectar dispositivo > "Conectar com numero de
+// telefone"), in the 2x font and written XXXX-XXXX, the way WhatsApp shows it.
+// Nothing else shares the screen but its title and one caption.
+void OledManager::drawCode(const DisplayModel& m) {
+  if (!m.waCode || strlen(m.waCode) != 8) return;
+  centered(0, "WhatsApp", 2);                    // yellow band
+  centered(BLUE_Y + 6, "Codigo de conexao");     // blue
+  char b[12];
+  snprintf(b, sizeof b, "%.4s-%s", m.waCode, m.waCode + 4);
+  centered(BLUE_Y + 22, b, 2);                   // 9 characters x 12 px = 108 px
 }
 
 void OledManager::drawMessage(const DisplayModel& m) {

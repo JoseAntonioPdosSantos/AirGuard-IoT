@@ -148,6 +148,28 @@ constexpr uint32_t REMOTE_MSG_PAGE_MS = 3000;  // each page shown exactly 3 s
 constexpr uint8_t  REMOTE_MSG_QUEUE   = 4;
 
 // ---------------------------------------------------------------------------
+// WhatsApp link (docs/12_whatsapp.md). AirGuard Web keeps the WhatsApp session;
+// this node only exchanges MQTT messages with it (net/uplink) and shows them.
+// ---------------------------------------------------------------------------
+// A received message scrolls in the yellow band, slower than the measurements
+// (DISPLAY_TICKER_PX_PER_S), and crosses the screen this many times.
+constexpr uint32_t WA_TICKER_PX_PER_S = 25;
+constexpr uint8_t  WA_TICKER_PASSES   = 2;
+constexpr uint8_t  WA_MSG_QUEUE       = 4;     // messages waiting for the yellow band
+// Message LED (blue, pins::LED_MSG): blinks when a WhatsApp message arrives and is
+// accepted for the display (never during an alert). Same rhythm and time as
+// the receiver's green LED while the message is on its LCD.
+constexpr uint32_t WA_LED_BLINK_MS    = 5000;  // how long it blinks per message
+constexpr uint32_t WA_LED_HALF_MS     = 125;   // on / off time: 4 Hz
+constexpr size_t   WA_TEXT_MAX        = 120;   // chars of "sender: text" shown / relayed
+constexpr uint16_t WA_CODE_DEFAULT_TTL_S = 160;  // when the server does not say how long a pairing code lives
+// The node's state (alert levels, relay) is published retained on MQTT when it
+// changes and re-published this often (repairs a lost QoS 0 publish).
+constexpr uint32_t WA_STATE_PERIOD_MS = 30000;
+constexpr size_t   UPLINK_MQTT_RX_BUFFER = 1280;  // largest MQTT packet received (a WhatsApp message, escaped)
+constexpr size_t   UPLINK_EVENT_BYTES = 1024;     // events for AirGuard Web waiting for the broker
+
+// ---------------------------------------------------------------------------
 // LoRa radio: REYAX RYLR998 (SX1262 inside, UART AT commands).
 // See docs/03_lora_protocol.md (ANATEL notes!). BOTH nodes must use the same
 // band, parameters, network id and password.

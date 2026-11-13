@@ -47,6 +47,89 @@ void formatLine2(const ReceiverState& s, bool linkPage, int rssi, uint32_t now, 
   pad(out, t);
 }
 
+bool LcdMessage::show(const char* text, uint32_t now, uint32_t totalMs, uint8_t maxPages, uint8_t times,
+                      uint32_t gapMs) {
+  uint8_t maxLines = static_cast<uint8_t>(maxPages * 2);
+  if (maxLines == 0 || maxLines > MAX_LINES) maxLines = MAX_LINES;
+  memset(line_, 0, sizeof line_);
+  count_ = 0;
+  cut_ = false;
+  char cur[LCD_COLS + 1] = {};
+  size_t curLen = 0;
+  auto flush = [&]() {
+    if (count_ < maxLines) memcpy(line_[count_++], cur, curLen + 1);
+    else cut_ = true;
+    curLen = 0;
+    cur[0] = '\0';
+  };
+  const char* p = text ? text : "";
+  while (*p && !cut_) {
+    while (*p == ' ') ++p;
+    const char* w = p;
+    while (*p && *p != ' ') ++p;
+    size_t wlen = static_cast<size_t>(p - w);
+    while (wlen > 0 && !cut_) {
+      const size_t space = curLen ? 1 : 0;
+      if (curLen + space + wlen <= LCD_COLS) {
+        if (space) cur[curLen++] = ' ';
+        memcpy(cur + curLen, w, wlen);
+        curLen += wlen;
+        cur[curLen] = '\0';
+        wlen = 0;
+      } else if (curLen == 0) {  // a word longer than a line: hard split
+        memcpy(cur, w, LCD_COLS);
+        curLen = LCD_COLS;
+        cur[curLen] = '\0';
+        w += LCD_COLS;
+        wlen -= LCD_COLS;
+        flush();
+      } else {
+        flush();
+      }
+    }
+  }
+  if (curLen && !cut_) flush();
+  if (cut_) {  // mark the last visible line
+    char* last = line_[count_ - 1];
+    size_t n = strlen(last);
+    if (n > LCD_COLS - 3) n = LCD_COLS - 3;
+    memcpy(last + n, "...", 4);
+  }
+  pages_ = static_cast<uint8_t>((count_ + 1) / 2);
+  active_ = count_ > 0;
+  startMs_ = now;
+  totalMs_ = totalMs;
+  times_ = times ? times : 1;
+  gapMs_ = gapMs;
+  return active_;
+}
+
+bool LcdMessage::active(uint32_t now) const {
+  if (!active_ || totalMs_ == 0) return false;
+  const uint32_t e = now - startMs_;
+  const uint32_t cycle = totalMs_ + gapMs_;
+  return e / cycle < times_ && e % cycle < totalMs_;
+}
+
+uint8_t LcdMessage::appearance(uint32_t now) const {
+  const uint32_t cycle = totalMs_ + gapMs_;
+  const uint32_t i = cycle ? (uint32_t)(now - startMs_) / cycle : 0;
+  return static_cast<uint8_t>(i >= times_ ? times_ : i + 1);
+}
+
+void LcdMessage::lines(uint32_t now, char* l1, char* l2) const {
+  uint8_t page = 0;
+  if (pages_ > 1 && totalMs_ > 0) {
+    const uint32_t per = totalMs_ / pages_;
+    const uint32_t e = (uint32_t)(now - startMs_) % (totalMs_ + gapMs_);  // time into this appearance
+    const uint32_t i = per ? e / per : 0;
+    page = static_cast<uint8_t>(i >= pages_ ? pages_ - 1 : i);
+  }
+  const uint8_t a = static_cast<uint8_t>(page * 2);
+  pad(l1, a < count_ ? line_[a] : "");
+  pad(l2, a + 1 < count_ ? line_[a + 1] : "");
+}
+
 }  // namespace rx
 
 #ifdef ARDUINO

@@ -32,6 +32,7 @@ constexpr uint8_t BUZZER     = 25;  // buzzer (+) through 1 kOhm
 constexpr uint8_t LED_RED    = 26;  // through 1 kOhm
 constexpr uint8_t LED_YELLOW = 33;  // through 1 kOhm
 constexpr uint8_t RELAY      = 23;  // relay-module IN
+constexpr uint8_t LED_MSG    = 32;  // BLUE LED "WhatsApp message arrived", through 230 Ohm (cathode to GND)
 // GREEN LED: NOT on a GPIO. It is powered from 3V3 through the relay's NC
 // contact, so it is lit while the relay is released and goes off when the
 // relay is energised (HIGH condition).

@@ -33,6 +33,7 @@ const char* HELP =
     "  sim rx <json>                        inject a received LoRa frame\r\n"
     "  sim ack <event_id>                   inject an ACK from the gateway\r\n"
     "  sim text <message>                   inject a TEXT from WHATSAPP_GATEWAY\r\n"
+    "  sim wa <message>                     inject a WhatsApp message (as if received over MQTT)\r\n"
     "  sim off                              disable every simulation\r\n"
     "  log debug|info|warn                  log level\r\n"
     "  tlm on|off                           echo telemetry records on USB as '@T' lines\r\n"
@@ -40,6 +41,7 @@ const char* HELP =
     "  net ssid <name> | net pass <pass>    Wi-Fi network (saved in flash; rest of the line)\r\n"
     "  net broker host[:port]               MQTT broker (default port 1883)\r\n"
     "  net user <name> | net mqttpass <p>   MQTT login\r\n"
+    "  wa                                   WhatsApp link status (session, pairing code, messages)\r\n"
     "  reboot                               reboot (test: reboot during alert)\r\n";
 
 void writeRaw(const char* s) {
@@ -73,6 +75,7 @@ char* nextWord(char*& p) {
 }
 
 uint32_t g_simTextId = 900000;
+uint32_t g_simWaId = 0;
 
 }  // namespace
 
@@ -147,6 +150,7 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
     else LOGW("CON", "net %s: value too long", a);
     return;
   }
+  if (!strcmp(cmd, "wa")) { printWhatsApp(now); return; }
   if (!strcmp(cmd, "warmup")) {
     if (!strcmp(nextWord(p), "skip")) {
       air_.skipWarmup();
@@ -195,6 +199,11 @@ void AirGuardApp::handleCommand(char* line, uint32_t now) {
     const size_t n = w.finish();
     if (n == 0) { LOGW("SIM", "text too long"); return; }
     handleFrame(reinterpret_cast<const uint8_t*>(buf), n, 0, 0, now);
+    return;
+  }
+  if (!strcmp(what, "wa")) {
+    if (!*p) { LOGW("SIM", "usage: sim wa <message>"); return; }
+    onWhatsAppMessage("Teste", p, 990000 + ++g_simWaId, now);
     return;
   }
   if (!strcmp(what, "lorafail")) {

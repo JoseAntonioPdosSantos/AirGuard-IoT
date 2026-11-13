@@ -46,6 +46,18 @@ ParseResult parseHeartbeat(const char* data, size_t len, Heartbeat& out);
 // `data` need not be NUL-terminated. Unknown keys are ignored.
 ParseResult parseEvent(const char* data, size_t len, Event& out);
 
+// TEXT: a WhatsApp message the node relays for the LCD (no ACK), e.g.
+//   {"type":"TEXT","device":"KITCHEN_01","dst":"GATEWAY_01","message_id":7,"text":"Maria: oi"}
+// The text arrives as display ASCII; it is only shown, never interpreted.
+struct TextMsg {
+  char     device[24] = {};
+  char     dst[24] = {};
+  uint32_t id = 0;
+  char     text[168] = {};  // a 240-byte frame carries at most ~150 characters
+};
+// Ok for a valid TEXT; NotEvent if the frame is another type.
+ParseResult parseText(const char* data, size_t len, TextMsg& out);
+
 // Builds {"type":"ACK","device":<gw>,"dst":<node>,"ack_for":<id>,"rssi":<dBm>,"snr":<dB>}
 // (rssi/snr = how the receiver heard the event it confirms). Returns the
 // length (0 if it does not fit).

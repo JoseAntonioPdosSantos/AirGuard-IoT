@@ -38,6 +38,10 @@ struct DisplayModel {
   uint8_t  txPending = 0;
   // message screen
   const RemoteMessageDisplay* msg = nullptr;
+  // WhatsApp (docs/12_whatsapp.md)
+  const char* waText = nullptr;      // message scrolling in the yellow band (nullptr = none)
+  int16_t     waX = 0;               // x of its first character
+  const char* waCode = nullptr;      // 8-character pairing code, drawn by Screen::Code
 };
 
 class OledManager {
@@ -55,6 +59,7 @@ class OledManager {
   void drawMain(const DisplayModel& m);
   void drawAlert(const DisplayModel& m);
   void drawMessage(const DisplayModel& m);
+  void drawCode(const DisplayModel& m);
   void drawFooter(const DisplayModel& m);
   void drawHeader(const DisplayModel& m);
   void drawTicker(const DisplayModel& m, const char* prefix);
