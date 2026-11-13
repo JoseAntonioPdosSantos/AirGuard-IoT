@@ -20,6 +20,7 @@ painel **AirGuard Web**.
 - [Estrutura](#estrutura)
 - [Documentação](#documentação)
 - [Estado atual](#estado-atual)
+- [Licença](#licença)
 
 ## Visão geral
 
