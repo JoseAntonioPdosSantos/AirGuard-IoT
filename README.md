@@ -90,3 +90,7 @@ Onde mexer no dia a dia: **limites** em `src/config/thresholds.h`, **tempos e po
 | Relé | ⏳ ainda não ligado/testado |
 | Testes em hardware (23 cenários) | ⏳ pendentes |
 | Pendências de hardware | ver [docs/01_hardware.md §6](docs/01_hardware.md) |
+
+## Licença
+
+Distribuído sob a licença [MIT](LICENSE).
